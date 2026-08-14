@@ -821,14 +821,41 @@ function patchSidebarActivitySurface(content) {
       `([A-Za-z_$][\\w$]*)=q\\([A-Za-z_$][\\w$]*\\);return \\1&&` +
       '\\(\\2\\.status===`allowed`\\|\\|\\2\\.status===`loading`\\)',
   );
+  // 26.810 renamed the access-status accessor (`q(...)` -> `J(...)`), so the
+  // post-patch verifier above must also tolerate any identifier for that call.
+  const sidebarPatchedSurfaceReV2 = new RegExp(
+    `([A-Za-z_$][\\w$]*)=!0${escapeRegExp(SIDEBAR_ACTIVITY_VIEW_PATCH_MARKER)},` +
+      `([A-Za-z_$][\\w$]*)=[A-Za-z_$][\\w$]*\\([A-Za-z_$][\\w$]*\\);return \\1&&` +
+      '\\(\\2\\.status===`allowed`\\|\\|\\2\\.status===`loading`\\)',
+  );
+  const isSidebarPatched = text =>
+    sidebarPatchedSurfaceRe.test(text) || sidebarPatchedSurfaceReV2.test(text);
   const sidebarUnpatchedSurfaceRe =
     /([A-Za-z_$][\w$]*)=([A-Za-z_$][\w$]*)\(([A-Za-z_$][\w$]*)\),([A-Za-z_$][\w$]*)=q\([A-Za-z_$][\w$]*\);return \1&&\(\4\.status===`allowed`\|\|\4\.status===`loading`\)\}[^]*?\3=`4039078146`/;
-  const sidebarAlreadyCorrect = sidebarPatchedSurfaceRe.test(next);
+  // 26.810 renamed the access-status accessor from `q(...)` to `J(...)`, so the
+  // fixed `=q\(` anchor above no longer matches. Generalise only that one call
+  // to any identifier; the gate id `4039078146` and the allowed/loading return
+  // shape keep the match pinned to the sidebar Activity surface (verified unique
+  // via matchAll below).
+  const sidebarUnpatchedSurfaceReV2 =
+    /([A-Za-z_$][\w$]*)=([A-Za-z_$][\w$]*)\(([A-Za-z_$][\w$]*)\),([A-Za-z_$][\w$]*)=[A-Za-z_$][\w$]*\([A-Za-z_$][\w$]*\);return \1&&\(\4\.status===`allowed`\|\|\4\.status===`loading`\)\}[^]*?\3=`4039078146`/;
+  const sidebarAlreadyCorrect = isSidebarPatched(next);
+  const chooseUnpatchedSurfaceRe = () => {
+    if (sidebarUnpatchedSurfaceRe.test(next)) return sidebarUnpatchedSurfaceRe;
+    const v2Global = new RegExp(sidebarUnpatchedSurfaceReV2.source, 'g');
+    if ([...next.matchAll(v2Global)].length === 1) {
+      return sidebarUnpatchedSurfaceReV2;
+    }
+    return null;
+  };
+  const sidebarUnpatchedSurfaceReToUse = sidebarAlreadyCorrect
+    ? null
+    : chooseUnpatchedSurfaceRe();
   const sidebarSurfaceSeen =
     sidebarAlreadyCorrect ||
-    (next.includes('`4039078146`') && sidebarUnpatchedSurfaceRe.test(next));
-  if (!sidebarAlreadyCorrect && sidebarSurfaceSeen) {
-    next = next.replace(sidebarUnpatchedSurfaceRe, match =>
+    (next.includes('`4039078146`') && sidebarUnpatchedSurfaceReToUse != null);
+  if (!sidebarAlreadyCorrect && sidebarUnpatchedSurfaceReToUse != null) {
+    next = next.replace(sidebarUnpatchedSurfaceReToUse, match =>
       match.replace(
         /([A-Za-z_$][\w$]*)=([A-Za-z_$][\w$]*)\(([A-Za-z_$][\w$]*)\),/,
         `$1=!0${SIDEBAR_ACTIVITY_VIEW_PATCH_MARKER},`,
@@ -841,7 +868,7 @@ function patchSidebarActivitySurface(content) {
     content: next,
     patched,
     sidebarSurfaceSeen,
-    sidebarCorrect: sidebarPatchedSurfaceRe.test(next),
+    sidebarCorrect: isSidebarPatched(next),
   };
 }
 
@@ -1082,6 +1109,19 @@ function patchCodexOnlyLocalTasks(content) {
     next = next.slice(0, first) + replacement + next.slice(first + needle.length);
     found.add(marker);
   };
+  // Regex fallback: only fires when the exact string needle above already
+  // missed (marker not yet in `found`, e.g. on a drifted upstream bundle).
+  // Requires the pattern to match exactly once so a loosened anchor can never
+  // silently rewrite the wrong site — if it matches 0 or >1 times we bail and
+  // let the required-patch gate fail loudly rather than ship a broken package.
+  const replaceOnceRe = (re, replacement, marker) => {
+    if (found.has(marker)) return;
+    const globalRe = re.global ? re : new RegExp(re.source, re.flags + 'g');
+    const matches = [...next.matchAll(globalRe)];
+    if (matches.length !== 1) return;
+    next = next.replace(re, replacement);
+    found.add(marker);
+  };
 
   replaceOnce(
     'function v5s({configuredThreadDetailLevel:e,onboardingWorkMode:t,threadDetailLevel:n}){return e==null&&t===`non_coding`||n===`STEPS_PROSE`?`work`:`codex`}',
@@ -1113,6 +1153,67 @@ function patchCodexOnlyLocalTasks(content) {
     `try{if(i.data.target.type===\`chatgptWorkCloud\`)return oC(\`Cloud tasks are disabled in this Codex-only build.\`)${CLOUD_TASK_RUNTIME_BLOCKED_PATCH_MARKER};if(i.data.target.type===\`chatgptWorkCloud\`){`,
     CLOUD_TASK_RUNTIME_BLOCKED_PATCH_MARKER,
   );
+
+  // ── 26.810+ regex fallbacks ────────────────────────────────────────────────
+  // 26.810 kept every one of these seams functionally identical but drifted the
+  // minified identifiers (and, for the startup mode selector, inlined the helper
+  // into a Jotai getter). Each fallback re-anchors on the surviving stable
+  // literals and re-applies the exact same rewrite as the 26.803 string needle
+  // above. They run only when the string needle already missed (guarded by
+  // `found`), so 26.803 is untouched.
+
+  // startup: 26.803 `function v5s({configuredThreadDetailLevel,onboardingWorkMode,
+  // threadDetailLevel}){return ...?`work`:`codex`}` became a Jotai getter
+  // `Ia(Q,({get:e})=>{let t=e7e(e,Wke.conversationDetailMode),n=e(P3r)?.roles;
+  // return ...===`non_coding`||e(zTt)===`STEPS_PROSE`?`work`:`codex`})`. Force
+  // the whole mode decision to `codex`, same as collapsing v5s's body.
+  replaceOnceRe(
+    /(\{get:([A-Za-z_$][\w$]*)\}\)=>\{let [A-Za-z_$][\w$]*=[A-Za-z_$][\w$]*\(\2,[A-Za-z_$][\w$]*\.conversationDetailMode\),[A-Za-z_$][\w$]*=\2\([A-Za-z_$][\w$]*\)\?\.roles;return )[\s\S]{0,300}?===`non_coding`\|\|\2\([A-Za-z_$][\w$]*\)===`STEPS_PROSE`\?`work`:`codex`(\})/,
+    `$1\`codex\`${CODEX_ONLY_STARTUP_PATCH_MARKER}$3`,
+    CODEX_ONLY_STARTUP_PATCH_MARKER,
+  );
+
+  // selector: `{codexOnly:h,codexLocalAccessStatus:d.status,productMode:re}` —
+  // only the productMode var and surrounding component name drifted. Anchor on
+  // `.status` so the sibling destructuring `{codexOnly:n,codexLocalAccessStatus:
+  // r,productMode:i}=e` (no `.status`) can never match.
+  replaceOnceRe(
+    /codexOnly:([A-Za-z_$][\w$]*),codexLocalAccessStatus:([A-Za-z_$][\w$]*)\.status,productMode:([A-Za-z_$][\w$]*)\}/,
+    `codexOnly:!0${CODEX_ONLY_SELECTOR_PATCH_MARKER},codexLocalAccessStatus:$2.status,productMode:$3}`,
+    CODEX_ONLY_SELECTOR_PATCH_MARKER,
+  );
+
+  // transition: `function txc(e,{codexLocalAccessStatus:t,...,startNewConversation:
+  // a}){` was renamed (txc -> GGc); the destructured params are unchanged. Pin
+  // the next requested mode to `codex`, same as the 26.803 needle.
+  replaceOnceRe(
+    /function ([A-Za-z_$][\w$]*)\(e,\{codexLocalAccessStatus:t,currentMode:n,navigate:r,nextMode:i,startNewConversation:a\}\)\{/,
+    `function $1(e,{codexLocalAccessStatus:t,currentMode:n,navigate:r,nextMode:i,startNewConversation:a}){i=\`codex\`;${CODEX_ONLY_TRANSITION_PATCH_MARKER}`,
+    CODEX_ONLY_TRANSITION_PATCH_MARKER,
+  );
+
+  // composer: `function Uxs({cloudAccess,...,preferredLocation})` was renamed
+  // (Uxs -> lIs, inner helper Wxs -> uIs) with an identical body. Capture both
+  // the function name and the inner helper so the rewrite keeps calling the
+  // right helper, then force cloud unavailable and prefer the local location.
+  replaceOnceRe(
+    /function ([A-Za-z_$][\w$]*)\(\{cloudAccess:e,cloudProjectCompatible:t,enforceAccess:n,localAccess:r,preferredLocation:i\}\)\{let a=\{cloud:\(n\?([A-Za-z_$][\w$]*)\(e\):null\)\?\?\(t\?null:`project-incompatible`\),local:n\?\2\(r\):null\},o=i;if\(a\[i\]!=null\)\{let e=i===`cloud`\?`local`:`cloud`;o=a\[e\]==null\?e:null\}return\{effectiveLocation:o,unavailableReasons:a\}\}/,
+    (_m, fn, helper) =>
+      `function ${fn}({cloudAccess:e,cloudProjectCompatible:t,enforceAccess:n,localAccess:r,preferredLocation:i}){` +
+      `let a={cloud:\`codex-only-local-tasks\`,local:n?${helper}(r):null},` +
+      `o=a.local==null?\`local\`:null;` +
+      `return{effectiveLocation:o,unavailableReasons:a}}${LOCAL_TASKS_ONLY_COMPOSER_PATCH_MARKER}`,
+    LOCAL_TASKS_ONLY_COMPOSER_PATCH_MARKER,
+  );
+
+  // schema: the `chatgptWorkCloud` member of the task-target discriminated union
+  // — only the minified constructor/validator/discriminator vars drifted. Drop
+  // the union member exactly as the 26.803 needle did.
+  replaceOnceRe(
+    /,[A-Za-z_$][\w$]*\(\{type:[A-Za-z_$][\w$]*\(`chatgptWorkCloud`\),projectId:[A-Za-z_$][\w$]*\(\)\.min\(1\)\.optional\(\)\}\)(\])(\),[A-Za-z_$][\w$]*=)/,
+    `$1${CLOUD_TASK_SCHEMA_DISABLED_PATCH_MARKER}$2`,
+    CLOUD_TASK_SCHEMA_DISABLED_PATCH_MARKER,
+  );
   if (!found.has(CLOUD_TASK_LIST_DISABLED_PATCH_MARKER)) {
     const listNeedles = [
       ['RM=Pa(Q,()=>({enabled:!0,placeholderData:R,queryFn:async()=>{try{return(await f_.safeGet(`/wham/tasks/list`,', `RM=Pa(Q,()=>({enabled:!1${CLOUD_TASK_LIST_DISABLED_PATCH_MARKER},placeholderData:R,queryFn:async()=>{try{return(await f_.safeGet(\`/wham/tasks/list\`,`],
@@ -1130,6 +1231,35 @@ function patchCodexOnlyLocalTasks(content) {
     if (listPatched) found.add(CLOUD_TASK_LIST_DISABLED_PATCH_MARKER);
   }
 
+  // 26.810 list fallback: only the query-hook var (RM=Pa->SC=Ba) and the safeGet
+  // client var (f_->u_) drifted on the `/wham/tasks/list` query; the `enabled:!1`
+  // gate on the ChatGPT-auth flag (list2) is byte-identical. Flip the fetch's
+  // `enabled` via regex, then apply the unchanged list2 string needle. Both must
+  // land or the marker stays unset.
+  if (!found.has(CLOUD_TASK_LIST_DISABLED_PATCH_MARKER)) {
+    const listFetchRe =
+      /(\(\{enabled:)!0(,placeholderData:[A-Za-z_$][\w$]*,queryFn:async\(\)=>\{try\{return\(await [A-Za-z_$][\w$]*\.safeGet\(`\/wham\/tasks\/list`)/;
+    const listAuthNeedle = 'let s=e?.enabled!==!1&&n===`chatgpt`,c;';
+    const listAuthReplacement = 'let s=!1,c;';
+    const fetchGlobal = new RegExp(listFetchRe.source, 'g');
+    const fetchMatches = [...next.matchAll(fetchGlobal)];
+    const authFirst = next.indexOf(listAuthNeedle);
+    const authUnique =
+      authFirst >= 0 &&
+      next.indexOf(listAuthNeedle, authFirst + listAuthNeedle.length) < 0;
+    if (fetchMatches.length === 1 && authUnique) {
+      next = next.replace(
+        listFetchRe,
+        `$1!1${CLOUD_TASK_LIST_DISABLED_PATCH_MARKER}$2`,
+      );
+      next =
+        next.slice(0, authFirst) +
+        listAuthReplacement +
+        next.slice(authFirst + listAuthNeedle.length);
+      found.add(CLOUD_TASK_LIST_DISABLED_PATCH_MARKER);
+    }
+  }
+
   if (!found.has(CLOUD_TASK_DETAIL_DISABLED_PATCH_MARKER)) {
     const detailNeedles = [
       ['{return{enabled:e!=null,queryFn:async()=>f_.safeGet(`/wham/tasks/{task_id}`,', `{return{enabled:!1${CLOUD_TASK_DETAIL_DISABLED_PATCH_MARKER},queryFn:async()=>f_.safeGet(\`/wham/tasks/{task_id}\`,`],
@@ -1145,6 +1275,30 @@ function patchCodexOnlyLocalTasks(content) {
       next = next.slice(0, index) + replacement + next.slice(index + needle.length);
     }
     if (detailPatched) found.add(CLOUD_TASK_DETAIL_DISABLED_PATCH_MARKER);
+  }
+
+  // 26.810 detail fallback: only the safeGet client var (f_->u_) drifted on the
+  // `/wham/tasks/{task_id}` and `.../turns` detail queries. Anchor the first on
+  // a closing backtick right after `{task_id}` so it can never match the `/turns`
+  // variant. Both must land or the marker stays unset.
+  if (!found.has(CLOUD_TASK_DETAIL_DISABLED_PATCH_MARKER)) {
+    const detailRe =
+      /\{return\{enabled:e!=null,queryFn:async\(\)=>([A-Za-z_$][\w$]*)\.safeGet\(`\/wham\/tasks\/\{task_id\}`,/;
+    const detailTurnsRe =
+      /\{return\{enabled:e!=null,queryFn:async\(\)=>([A-Za-z_$][\w$]*)\.safeGet\(`\/wham\/tasks\/\{task_id\}\/turns`,/;
+    const detailMatches = [...next.matchAll(new RegExp(detailRe.source, 'g'))];
+    const turnsMatches = [...next.matchAll(new RegExp(detailTurnsRe.source, 'g'))];
+    if (detailMatches.length === 1 && turnsMatches.length === 1) {
+      next = next.replace(
+        detailRe,
+        `{return{enabled:!1${CLOUD_TASK_DETAIL_DISABLED_PATCH_MARKER},queryFn:async()=>$1.safeGet(\`/wham/tasks/{task_id}\`,`,
+      );
+      next = next.replace(
+        detailTurnsRe,
+        '{return{enabled:!1,queryFn:async()=>$1.safeGet(`/wham/tasks/{task_id}/turns`,',
+      );
+      found.add(CLOUD_TASK_DETAIL_DISABLED_PATCH_MARKER);
+    }
   }
 
   return { content: next, patched: next !== content, markers: found };
