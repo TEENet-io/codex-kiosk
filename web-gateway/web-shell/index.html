@@ -1,0 +1,879 @@
+<!doctype html>
+<html lang="zh-CN" class="electron-light" data-codex-window-type="browser">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta http-equiv="Cache-Control" content="no-store" />
+    <title>Codex Offline</title>
+    <!-- codex-official-styles -->
+    <style>
+      /* ── 非遗主题 Design Tokens ── */
+      :root {
+        --feiyi-orange: #D85A2B;
+        --feiyi-orange-light: #F2994A;
+        --feiyi-rice-paper: #F5EAD7;
+        --feiyi-warm-white: #FFF8EC;
+        --feiyi-apricot: #E8CFA4;
+        --feiyi-light-brown: #B89567;
+        --feiyi-deep-brown: #4A3326;
+        --feiyi-ink: #252321;
+        --feiyi-bamboo-green: #4E7A55;
+        --feiyi-mountain-green: #788A62;
+        --feiyi-water-blue: #A8C7C1;
+        --feiyi-rouge-red: #D86A57;
+        --feiyi-gold: #D9A548;
+        --feiyi-card-bg: #FFF8EC;
+        --feiyi-page-bg: #F7EFE1;
+        --feiyi-border: #E4D1B7;
+        --feiyi-radius-card: 18px;
+        --feiyi-radius-button: 14px;
+        --feiyi-radius-chip: 999px;
+        --feiyi-shadow-card: 0 10px 30px rgba(74, 51, 38, 0.08);
+        color-scheme: light;
+      }
+
+      /* ── 思源字体栈 ── */
+      @font-face {
+        font-family: "Feiyi Serif";
+        src: local("Source Han Serif SC"), local("Noto Serif SC"), local("SimSun"), local("STSong"), local("serif");
+        font-display: swap;
+      }
+
+      html,
+      body {
+        margin: 0;
+        width: 100%;
+        height: 100%;
+        background: var(--feiyi-page-bg);
+        color: var(--feiyi-deep-brown);
+        font-family: "Noto Sans SC", "Source Han Sans SC", "PingFang SC", "Microsoft YaHei", system-ui, -apple-system, sans-serif;
+        font-size: 14px;
+        line-height: 1.6;
+      }
+
+      button,
+      input {
+        font: inherit;
+      }
+
+      #root {
+        min-height: 100%;
+      }
+
+      /* ── 主容器：暖纸背景 + 纹理 ── */
+      .entry {
+        position: relative;
+        box-sizing: border-box;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+        overflow: hidden;
+        background:
+          radial-gradient(ellipse at 15% 20%, rgba(232, 207, 164, 0.35) 0%, transparent 55%),
+          radial-gradient(ellipse at 85% 75%, rgba(168, 199, 193, 0.25) 0%, transparent 55%),
+          radial-gradient(ellipse at 50% 50%, rgba(217, 165, 72, 0.08) 0%, transparent 70%),
+          linear-gradient(180deg, #F7EFE1 0%, #F2E6D2 100%);
+      }
+
+      /* 纸张纤维纹理 */
+      .entry::before {
+        content: "";
+        position: absolute;
+        inset: 0;
+        opacity: 0.04;
+        background-image:
+          repeating-linear-gradient(0deg, transparent, transparent 2px, rgba(74, 51, 38, 0.25) 2px, rgba(74, 51, 38, 0.25) 2.5px),
+          repeating-linear-gradient(90deg, transparent, transparent 3px, rgba(74, 51, 38, 0.15) 3px, rgba(74, 51, 38, 0.15) 3.5px);
+        pointer-events: none;
+      }
+
+      /* ── 右下角山水装饰 ── */
+      .entry::after {
+        content: "";
+        position: absolute;
+        right: -20px;
+        bottom: -10px;
+        width: 280px;
+        height: 200px;
+        opacity: 0.12;
+        background:
+          /* 远山轮廓 */
+          radial-gradient(ellipse 140px 60px at 70% 85%, var(--feiyi-mountain-green) 0%, transparent 70%),
+          radial-gradient(ellipse 100px 40px at 50% 90%, var(--feiyi-bamboo-green) 0%, transparent 70%),
+          radial-gradient(ellipse 80px 30px at 30% 88%, var(--feiyi-mountain-green) 0%, transparent 70%),
+          /* 树丛 */
+          radial-gradient(circle 18px at 65% 80%, var(--feiyi-bamboo-green) 0%, transparent 80%),
+          radial-gradient(circle 12px at 55% 83%, var(--feiyi-mountain-green) 0%, transparent 80%),
+          /* 飞鸟 */
+          radial-gradient(ellipse 6px 3px at 75% 30%, var(--feiyi-ink) 0%, transparent 80%),
+          radial-gradient(ellipse 5px 2.5px at 80% 35%, var(--feiyi-ink) 0%, transparent 80%);
+        pointer-events: none;
+      }
+
+      /* ── 登录卡片 ── */
+      .panel {
+        position: relative;
+        z-index: 1;
+        box-sizing: border-box;
+        width: min(420px, 100%);
+        border: 1px solid var(--feiyi-border);
+        border-radius: var(--feiyi-radius-card);
+        background: linear-gradient(180deg, #FFFCF5 0%, var(--feiyi-card-bg) 100%);
+        box-shadow:
+          0 4px 24px rgba(74, 51, 38, 0.06),
+          0 12px 48px rgba(74, 51, 38, 0.10);
+        padding: 32px 28px 28px;
+      }
+
+      /* 卡片顶部卷轴装饰条 */
+      .panel::before {
+        content: "";
+        display: block;
+        width: 48px;
+        height: 4px;
+        margin: 0 auto 18px;
+        border-radius: 2px;
+        background: linear-gradient(90deg, var(--feiyi-apricot), var(--feiyi-orange), var(--feiyi-apricot));
+      }
+
+      /* ── 标题区 ── */
+      .brand {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 10px;
+        margin-bottom: 6px;
+      }
+
+      .brand-mark {
+        width: 32px;
+        height: 32px;
+        border-radius: 8px;
+        background: linear-gradient(135deg, var(--feiyi-orange), var(--feiyi-rouge-red));
+        display: grid;
+        place-items: center;
+        color: #fff;
+        font-family: "Feiyi Serif", "Source Han Serif SC", serif;
+        font-size: 18px;
+        font-weight: 700;
+        line-height: 1;
+        box-shadow: 0 2px 8px rgba(216, 90, 43, 0.25);
+      }
+
+      h1 {
+        margin: 0;
+        font-family: "Feiyi Serif", "Source Han Serif SC", "Noto Serif SC", serif;
+        font-size: 22px;
+        font-weight: 700;
+        line-height: 1.3;
+        letter-spacing: 0.04em;
+        color: var(--feiyi-ink);
+      }
+
+      .subtitle {
+        text-align: center;
+        margin: 0 0 20px;
+        color: var(--feiyi-light-brown);
+        font-size: 12.5px;
+        line-height: 1.5;
+        letter-spacing: 0.03em;
+      }
+
+      .status,
+      .hint {
+        margin: 8px 0 0;
+        color: var(--feiyi-light-brown);
+        font-size: 13px;
+        line-height: 1.6;
+        text-align: center;
+      }
+
+      /* ── 表单 ── */
+      form {
+        margin-top: 18px;
+      }
+
+      label {
+        display: block;
+        margin-bottom: 8px;
+        color: var(--feiyi-light-brown);
+        font-size: 13px;
+        line-height: 1.4;
+        letter-spacing: 0.02em;
+      }
+
+      input {
+        box-sizing: border-box;
+        width: 100%;
+        height: 42px;
+        border: 1px solid var(--feiyi-border);
+        border-radius: var(--feiyi-radius-button);
+        background: #FFFCF7;
+        color: var(--feiyi-deep-brown);
+        padding: 10px 14px;
+        outline: none;
+        transition: border-color 0.2s ease, box-shadow 0.2s ease;
+        font-size: 14px;
+      }
+
+      input:focus {
+        border-color: var(--feiyi-orange);
+        box-shadow: 0 0 0 3px rgba(216, 90, 43, 0.10);
+      }
+
+      input::placeholder {
+        color: var(--feiyi-apricot);
+        opacity: 0.7;
+      }
+
+      /* ── 主按钮 ── */
+      button {
+        width: 100%;
+        height: 42px;
+        margin-top: 14px;
+        border: none;
+        border-radius: var(--feiyi-radius-button);
+        background: linear-gradient(135deg, var(--feiyi-orange), #C04A1F);
+        color: #fff;
+        font-size: 15px;
+        font-weight: 600;
+        letter-spacing: 0.05em;
+        cursor: pointer;
+        transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.2s ease;
+        box-shadow: 0 4px 14px rgba(216, 90, 43, 0.30);
+      }
+
+      button:hover:not(:disabled) {
+        transform: translateY(-1px);
+        box-shadow: 0 6px 20px rgba(216, 90, 43, 0.38);
+      }
+
+      button:active:not(:disabled) {
+        transform: translateY(0);
+        box-shadow: 0 2px 8px rgba(216, 90, 43, 0.28);
+      }
+
+      button:disabled {
+        cursor: not-allowed;
+        opacity: 0.55;
+        box-shadow: none;
+        transform: none;
+      }
+
+      /* ── 错误提示 ── */
+      .error {
+        min-height: 20px;
+        margin-top: 12px;
+        color: var(--feiyi-rouge-red);
+        font-size: 13px;
+        line-height: 1.5;
+        text-align: center;
+      }
+
+      .hidden {
+        display: none;
+      }
+
+      /* ── 设置按钮 ── */
+      .settings-button {
+        position: fixed;
+        z-index: 4;
+        top: 16px;
+        right: 16px;
+        width: auto;
+        min-width: 40px;
+        padding: 0 16px;
+        margin: 0;
+        height: 38px;
+        border: 1px solid var(--feiyi-border);
+        border-radius: var(--feiyi-radius-button);
+        background: rgba(255, 252, 245, 0.85);
+        color: var(--feiyi-deep-brown);
+        font-size: 13px;
+        font-weight: 500;
+        box-shadow: 0 2px 8px rgba(74, 51, 38, 0.06);
+        backdrop-filter: blur(12px);
+        cursor: pointer;
+        transition: background 0.15s ease, box-shadow 0.15s ease;
+      }
+
+      .settings-button:hover:not(:disabled) {
+        background: rgba(255, 252, 245, 0.95);
+        box-shadow: 0 4px 14px rgba(74, 51, 38, 0.10);
+      }
+
+      /* ── 设置遮罩 ── */
+      .settings-backdrop {
+        position: fixed;
+        z-index: 5;
+        inset: 0;
+        background: rgba(74, 51, 38, 0.12);
+        opacity: 0;
+        pointer-events: none;
+        transition: opacity 0.3s ease;
+      }
+
+      /* ── 设置侧栏 ── */
+      .settings-sidebar {
+        position: fixed;
+        z-index: 6;
+        top: 0;
+        right: 0;
+        bottom: 0;
+        box-sizing: border-box;
+        width: min(320px, 86vw);
+        background: linear-gradient(180deg, #FFFCF5 0%, var(--feiyi-card-bg) 100%);
+        border-left: 1px solid var(--feiyi-border);
+        box-shadow:
+          0 0 0 0.5px rgba(74, 51, 38, 0.08),
+          -4px 0 24px rgba(74, 51, 38, 0.10);
+        padding: 20px;
+        transform: translateX(100%);
+        transition: transform 0.3s ease;
+        will-change: transform;
+      }
+
+      .settings-open .settings-backdrop {
+        opacity: 1;
+        pointer-events: auto;
+      }
+
+      .settings-open .settings-sidebar {
+        transform: translateX(0);
+      }
+
+      .settings-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        height: 36px;
+        margin-bottom: 4px;
+      }
+
+      .settings-header h2 {
+        margin: 0;
+        font-family: "Feiyi Serif", "Source Han Serif SC", serif;
+        font-size: 18px;
+        font-weight: 700;
+        line-height: 1.3;
+        color: var(--feiyi-ink);
+        letter-spacing: 0.03em;
+      }
+
+      .settings-close {
+        width: 32px;
+        height: 32px;
+        min-width: 32px;
+        margin: 0;
+        padding: 0;
+        border: none;
+        background: transparent;
+        color: var(--feiyi-light-brown);
+        font-size: 20px;
+        line-height: 1;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: background 0.15s ease, color 0.15s ease;
+        box-shadow: none;
+      }
+
+      .settings-close:hover:not(:disabled) {
+        background: rgba(184, 149, 103, 0.12);
+        color: var(--feiyi-deep-brown);
+      }
+
+      .settings-list {
+        display: grid;
+        gap: 4px;
+        margin-top: 16px;
+      }
+
+      .settings-row {
+        display: grid;
+        grid-template-columns: 1fr auto;
+        align-items: center;
+        gap: 12px;
+        min-height: 44px;
+        padding: 8px 10px;
+        border-radius: var(--feiyi-radius-button);
+        transition: background 0.15s ease;
+      }
+
+      .settings-row:hover {
+        background: rgba(232, 207, 164, 0.25);
+      }
+
+      .settings-row label {
+        margin: 0;
+        color: var(--feiyi-deep-brown);
+        font-size: 14px;
+        line-height: 1.4;
+      }
+
+      /* ── 开关 ── */
+      .switch {
+        position: relative;
+        width: 40px;
+        height: 24px;
+        margin: 0;
+        appearance: none;
+        border: 1px solid var(--feiyi-border);
+        border-radius: var(--feiyi-radius-chip);
+        background: rgba(184, 149, 103, 0.20);
+        cursor: pointer;
+        transition: background 0.15s ease, border-color 0.15s ease;
+      }
+
+      .switch::before {
+        content: "";
+        position: absolute;
+        top: 2px;
+        left: 2px;
+        width: 18px;
+        height: 18px;
+        border-radius: 50%;
+        background: #fff;
+        box-shadow: 0 1px 3px rgba(74, 51, 38, 0.18);
+        transition: transform 0.15s ease;
+      }
+
+      .switch:checked {
+        border-color: var(--feiyi-orange);
+        background: var(--feiyi-orange);
+      }
+
+      .switch:checked::before {
+        transform: translateX(16px);
+      }
+
+      .switch:focus-visible {
+        outline: 2px solid var(--feiyi-orange);
+        outline-offset: 2px;
+      }
+
+      /* ── 底部版本信息 ── */
+      .entry-version {
+        position: fixed;
+        z-index: 3;
+        left: 0;
+        right: 0;
+        bottom: max(16px, calc(env(safe-area-inset-bottom, 0px) + 16px));
+        text-align: center;
+        color: var(--feiyi-light-brown) !important;
+        -webkit-text-fill-color: var(--feiyi-light-brown);
+        font-size: 11px;
+        font-weight: 400;
+        line-height: 1.5;
+        opacity: 0.7;
+        pointer-events: none;
+      }
+
+      .entry-version span {
+        display: block;
+      }
+
+      /* ── 装饰分隔线 ── */
+      .divider-ornament {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        margin: 18px 0 6px;
+        opacity: 0.35;
+      }
+
+      .divider-ornament::before,
+      .divider-ornament::after {
+        content: "";
+        flex: 1;
+        height: 1px;
+        background: linear-gradient(90deg, transparent, var(--feiyi-apricot), transparent);
+      }
+
+      .divider-ornament::before {
+        direction: rtl;
+      }
+
+      .divider-diamond {
+        width: 6px;
+        height: 6px;
+        background: var(--feiyi-apricot);
+        transform: rotate(45deg);
+        border-radius: 1px;
+        flex-shrink: 0;
+      }
+
+      /* ── 响应式 ── */
+      @media (prefers-reduced-motion: reduce) {
+        .settings-backdrop,
+        .settings-sidebar {
+          transition: none;
+        }
+        button {
+          transition: none;
+        }
+      }
+
+      @media (max-width: 720px) {
+        .entry {
+          place-items: stretch;
+          align-items: center;
+          padding: 18px;
+        }
+
+        .entry::after {
+          right: -40px;
+          bottom: -20px;
+          width: 180px;
+          height: 140px;
+          opacity: 0.08;
+        }
+
+        .panel {
+          width: 100%;
+          padding: 24px 20px 22px;
+        }
+
+        h1 {
+          font-size: 20px;
+        }
+
+        .settings-button {
+          top: 12px;
+          right: 12px;
+        }
+
+        .entry-version {
+          bottom: max(12px, calc(env(safe-area-inset-bottom, 0px) + 12px));
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div id="root">
+      <main class="entry" aria-live="polite">
+        <section class="panel">
+          <div class="brand">
+            <div class="brand-mark" aria-hidden="true">C</div>
+            <h1>Codex Offline</h1>
+          </div>
+          <p class="subtitle">离线智能编程助手</p>
+          <div class="divider-ornament" aria-hidden="true">
+            <div class="divider-diamond"></div>
+          </div>
+          <p id="status" class="status">正在检查访问权限...</p>
+          <form id="login-form" class="hidden" autocomplete="on">
+            <label for="password">访问密码</label>
+            <input id="password" name="password" type="password" autocomplete="current-password" placeholder="请输入密码" />
+            <button id="submit" type="submit">进入</button>
+            <div id="error" class="error"></div>
+          </form>
+          <p id="hint" class="hint hidden">正在启动 Codex Offline...</p>
+        </section>
+      </main>
+      <div class="entry-version">
+        <span>Codex Offline Web Gateway</span>
+      </div>
+      <button id="settings-open" class="settings-button" type="button" aria-controls="settings-sidebar" aria-expanded="false">
+        设置
+      </button>
+      <div id="settings-backdrop" class="settings-backdrop" hidden></div>
+      <aside id="settings-sidebar" class="settings-sidebar" aria-label="设置" hidden>
+        <div class="settings-header">
+          <h2>设置</h2>
+          <button id="settings-close" class="settings-close" type="button" aria-label="关闭设置">&times;</button>
+        </div>
+        <div class="divider-ornament" aria-hidden="true">
+          <div class="divider-diamond"></div>
+        </div>
+        <div class="settings-list">
+          <div class="settings-row">
+            <label for="setting-persist-auth-token">记住登录状态</label>
+            <input id="setting-persist-auth-token" class="switch" type="checkbox" role="switch" />
+          </div>
+          <div class="settings-row">
+            <label for="setting-mobile-keyboard">移动端软键盘优化</label>
+            <input id="setting-mobile-keyboard" class="switch" type="checkbox" role="switch" />
+          </div>
+          <div class="settings-row">
+            <label for="setting-mobile-sidebar-collapse">移动端点击会话自动收起侧栏</label>
+            <input id="setting-mobile-sidebar-collapse" class="switch" type="checkbox" role="switch" />
+          </div>
+        </div>
+      </aside>
+    </div>
+    <script>
+      (() => {
+        const tokenKey = "codex_web_auth_token";
+        const expiresKey = "codex_web_auth_expires_at";
+        const settingsKey = "codex_web_settings_v1";
+        const defaultSettings = {
+          mobileKeyboardOptimization: true,
+          mobileSidebarAutoCollapse: true,
+          persistAuthToken: false,
+        };
+        let runtimeAuthToken = "";
+        let runtimeAuthExpiresAtMs = 0;
+        const root = document.getElementById("root");
+        const status = document.getElementById("status");
+        const hint = document.getElementById("hint");
+        const form = document.getElementById("login-form");
+        const passwordInput = document.getElementById("password");
+        const submit = document.getElementById("submit");
+        const errorBox = document.getElementById("error");
+        const settingsOpen = document.getElementById("settings-open");
+        const settingsClose = document.getElementById("settings-close");
+        const settingsBackdrop = document.getElementById("settings-backdrop");
+        const settingsSidebar = document.getElementById("settings-sidebar");
+        const mobileKeyboardSwitch = document.getElementById("setting-mobile-keyboard");
+        const mobileSidebarCollapseSwitch = document.getElementById("setting-mobile-sidebar-collapse");
+        const persistAuthTokenSwitch = document.getElementById("setting-persist-auth-token");
+        let settingsCloseTimer = 0;
+
+        function loadSettings() {
+          try {
+            const parsed = JSON.parse(localStorage.getItem(settingsKey) || "{}");
+            return {
+              ...defaultSettings,
+              ...(parsed && typeof parsed === "object" ? parsed : {}),
+            };
+          } catch {
+            return { ...defaultSettings };
+          }
+        }
+
+        function saveSettings(nextSettings) {
+          try {
+            localStorage.setItem(settingsKey, JSON.stringify({ ...defaultSettings, ...nextSettings }));
+          } catch {}
+        }
+
+        function syncSettingsControls() {
+          const settings = loadSettings();
+          mobileKeyboardSwitch.checked = settings.mobileKeyboardOptimization !== false;
+          mobileSidebarCollapseSwitch.checked = settings.mobileSidebarAutoCollapse !== false;
+          persistAuthTokenSwitch.checked = settings.persistAuthToken === true;
+        }
+
+        function setSettingsOpen(open) {
+          if (settingsCloseTimer) {
+            clearTimeout(settingsCloseTimer);
+            settingsCloseTimer = 0;
+          }
+          if (open) {
+            settingsBackdrop.hidden = false;
+            settingsSidebar.hidden = false;
+            syncSettingsControls();
+            requestAnimationFrame(() => {
+              root.classList.add("settings-open");
+              settingsOpen.setAttribute("aria-expanded", "true");
+              settingsClose.focus();
+            });
+            return;
+          }
+          root.classList.toggle("settings-open", open);
+          settingsOpen.setAttribute("aria-expanded", "false");
+          settingsCloseTimer = setTimeout(() => {
+            settingsCloseTimer = 0;
+            settingsBackdrop.hidden = true;
+            settingsSidebar.hidden = true;
+            settingsOpen.focus();
+          }, 300);
+        }
+
+        function updateSetting(key, value) {
+          const settings = loadSettings();
+          settings[key] = value;
+          saveSettings(settings);
+        }
+
+        function shouldPersistAuthToken() {
+          return loadSettings().persistAuthToken === true;
+        }
+
+        function storedToken() {
+          if (runtimeAuthToken) {
+            if (runtimeAuthExpiresAtMs && runtimeAuthExpiresAtMs <= Date.now()) {
+              clearToken();
+              return "";
+            }
+            return runtimeAuthToken;
+          }
+          if (!shouldPersistAuthToken()) return "";
+          try {
+            const token = sessionStorage.getItem(tokenKey) || "";
+            const expiresAtMs = Number(sessionStorage.getItem(expiresKey) || 0);
+            if (token && expiresAtMs && expiresAtMs <= Date.now()) {
+              clearToken();
+              return "";
+            }
+            return token;
+          } catch {
+            return "";
+          }
+        }
+
+        function storeToken(token, expiresAtMs) {
+          runtimeAuthToken = token || "";
+          runtimeAuthExpiresAtMs = Number(expiresAtMs || 0);
+          if (!shouldPersistAuthToken()) {
+            clearPersistedToken();
+            return;
+          }
+          try {
+            if (token) sessionStorage.setItem(tokenKey, token);
+            if (expiresAtMs) sessionStorage.setItem(expiresKey, String(expiresAtMs));
+          } catch {}
+        }
+
+        function clearPersistedToken() {
+          try {
+            sessionStorage.removeItem(tokenKey);
+            sessionStorage.removeItem(expiresKey);
+          } catch {}
+        }
+
+        function clearToken() {
+          runtimeAuthToken = "";
+          runtimeAuthExpiresAtMs = 0;
+          clearPersistedToken();
+        }
+
+        function authHeaders(extra) {
+          const headers = new Headers(extra || {});
+          const token = storedToken();
+          if (token) {
+            headers.set("authorization", `Bearer ${token}`);
+            headers.set("x-codex-web-token", token);
+          }
+          return headers;
+        }
+
+        function localizedError(error) {
+          const message = error && error.message ? error.message : String(error || "");
+          if (message === "Invalid password") return "密码不正确。";
+          return message;
+        }
+
+        function escapeHtml(value) {
+          return String(value)
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;");
+        }
+
+        function showLogin(message) {
+          status.textContent = "请输入访问密码。";
+          hint.classList.add("hidden");
+          form.classList.remove("hidden");
+          errorBox.textContent = message || "";
+          submit.disabled = false;
+          passwordInput.focus();
+        }
+
+        function showBoot(message) {
+          status.textContent = message;
+          form.classList.add("hidden");
+          hint.classList.remove("hidden");
+        }
+
+        async function authStatus() {
+          const res = await fetch("/api/auth/status", {
+            cache: "no-store",
+            credentials: "same-origin",
+            headers: authHeaders({ accept: "application/json" }),
+          });
+          if (!res.ok) return { authRequired: true, authenticated: false };
+          return res.json();
+        }
+
+        async function bootRenderer() {
+          showBoot("正在启动 Codex Offline...");
+          const res = await fetch("/official-index.patched.html", {
+            cache: "no-store",
+            credentials: "same-origin",
+            headers: authHeaders({ accept: "text/html" }),
+          });
+          if (res.status === 401) {
+            clearToken();
+            showLogin("登录已过期，请重新输入密码。");
+            return;
+          }
+          if (!res.ok) throw new Error(`无法加载 Codex Offline：HTTP ${res.status}`);
+          const html = await res.text();
+          document.open();
+          document.write(html);
+          document.close();
+        }
+
+        async function login(password) {
+          const res = await fetch("/api/auth/login", {
+            method: "POST",
+            cache: "no-store",
+            credentials: "same-origin",
+            headers: { "content-type": "application/json", accept: "application/json" },
+            body: JSON.stringify({ password }),
+          });
+          const body = await res.json().catch(() => null);
+          if (!res.ok || !body || body.ok === false) {
+            throw new Error((body && body.error) || `登录失败：HTTP ${res.status}`);
+          }
+          if (body.token) storeToken(body.token, body.expiresAtMs);
+        }
+
+        form.addEventListener("submit", async (event) => {
+          event.preventDefault();
+          errorBox.textContent = "";
+          submit.disabled = true;
+          try {
+            await login(passwordInput.value);
+            passwordInput.value = "";
+            await bootRenderer();
+          } catch (error) {
+            showLogin(localizedError(error));
+          }
+        });
+
+        settingsOpen.addEventListener("click", () => setSettingsOpen(true));
+        settingsClose.addEventListener("click", () => setSettingsOpen(false));
+        settingsBackdrop.addEventListener("click", () => setSettingsOpen(false));
+        document.addEventListener("keydown", (event) => {
+          if (event.key === "Escape" && root.classList.contains("settings-open")) {
+            setSettingsOpen(false);
+          }
+        });
+        mobileKeyboardSwitch.addEventListener("change", () => {
+          updateSetting("mobileKeyboardOptimization", mobileKeyboardSwitch.checked);
+        });
+        mobileSidebarCollapseSwitch.addEventListener("change", () => {
+          updateSetting("mobileSidebarAutoCollapse", mobileSidebarCollapseSwitch.checked);
+        });
+        persistAuthTokenSwitch.addEventListener("change", () => {
+          updateSetting("persistAuthToken", persistAuthTokenSwitch.checked);
+          if (!persistAuthTokenSwitch.checked) clearPersistedToken();
+        });
+        syncSettingsControls();
+
+        (async () => {
+          try {
+            const state = await authStatus();
+            if (state.authenticated || state.authRequired === false) {
+              await bootRenderer();
+              return;
+            }
+            showLogin("");
+          } catch (error) {
+            root.innerHTML =
+              '<main class="entry"><section class="panel"><h1>Codex Offline</h1><p class="error">' +
+              escapeHtml(localizedError(error)) +
+              "</p></section></main>";
+            console.error("[codex-web] bootstrap failed", error);
+          }
+        })();
+      })();
+    </script>
+  </body>
+</html>
+

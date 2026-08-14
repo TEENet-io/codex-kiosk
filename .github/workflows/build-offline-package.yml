@@ -1,0 +1,377 @@
+name: build-offline-package
+
+on:
+  workflow_dispatch:
+    inputs:
+      build_installer:
+        description: Build the Inno Setup installer
+        required: false
+        default: true
+        type: boolean
+      force_rebuild:
+        description: Rebuild and republish even when the same release tag already exists
+        required: false
+        default: false
+        type: boolean
+  schedule:
+    - cron: '15 3 * * *'
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/build-offline-package.yml'
+      - '.github/workflows/build-offline-package-monitor.yml'
+      - 'README.md'
+      - 'CHANGELOG.md'
+      - 'config/**'
+      - 'docs/models-api.md'
+      - 'installer/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'scripts/**'
+      - 'web-gateway/**'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/build-offline-package.yml'
+      - '.github/workflows/build-offline-package-monitor.yml'
+      - 'README.md'
+      - 'CHANGELOG.md'
+      - 'config/**'
+      - 'docs/models-api.md'
+      - 'installer/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'scripts/**'
+      - 'web-gateway/**'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: codex-offline-build
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Validate patch scripts
+        shell: pwsh
+        run: |
+          function Test-PowerShellSyntax {
+            param(
+              [Parameter(Mandatory = $true)]
+              [string]$Path
+            )
+
+            $resolvedPath = (Resolve-Path $Path).Path
+            $tokens = $null
+            $errors = $null
+            [System.Management.Automation.Language.Parser]::ParseFile(
+              $resolvedPath,
+              [ref]$tokens,
+              [ref]$errors
+            ) | Out-Null
+
+            if ($errors.Count -gt 0) {
+              foreach ($error in $errors) {
+                Write-Error "${Path}:$($error.Extent.StartLineNumber): $($error.Message)"
+              }
+              throw "PowerShell syntax validation failed for $Path."
+            }
+          }
+
+          node --check './scripts/patch-app-asar.mjs'
+          node --check './scripts/offline-direct-launch-smoke.mjs'
+          node --check './scripts/extract-webview-from-asar.mjs'
+          node --check './scripts/build-api-model-catalog.mjs'
+          node --check './web-gateway/start-web.mjs'
+          node --test './scripts/test/*.test.cjs'
+          Test-PowerShellSyntax './scripts/build-offline-package.ps1'
+          Test-PowerShellSyntax './scripts/verify-offline-package.ps1'
+
+      - name: Install resolver dependencies
+        run: npm ci
+
+      - name: Resolve source version
+        id: source
+        shell: pwsh
+        run: |
+          $metadata = & ./scripts/get-app-source-version.ps1 -ConfigPath 'config/codex-only-local.json' | ConvertFrom-Json
+          "release_tag=$($metadata.releaseTag)" >> $env:GITHUB_OUTPUT
+          "release_name=$($metadata.releaseName)" >> $env:GITHUB_OUTPUT
+          "version=$($metadata.version)" >> $env:GITHUB_OUTPUT
+          "package_id=$($metadata.packageId)" >> $env:GITHUB_OUTPUT
+          "source_mode=$($metadata.sourceMode)" >> $env:GITHUB_OUTPUT
+          if ($null -ne $metadata.packageFamilyName) {
+            "package_family_name=$($metadata.packageFamilyName)" >> $env:GITHUB_OUTPUT
+          }
+
+      - name: Skip build when version already released
+        id: release_check
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          WORKFLOW_EVENT_NAME: ${{ github.event_name }}
+          WORKFLOW_FORCE_REBUILD: ${{ inputs.force_rebuild }}
+          HEAD_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+        run: |
+          if ($env:WORKFLOW_EVENT_NAME -eq 'pull_request') {
+            "force_rebuild=false" >> $env:GITHUB_OUTPUT
+            "skip_build=false" >> $env:GITHUB_OUTPUT
+            "skip_publish=true" >> $env:GITHUB_OUTPUT
+            Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "Pull request build: verification build will run, but publish steps are disabled."
+            exit 0
+          }
+
+          $tag = '${{ steps.source.outputs.release_tag }}'
+          $repo = '${{ github.repository }}'
+          $existingReleaseUrl = gh release view $tag --repo $repo --json url --jq '.url' 2>$null
+          $forceRebuild = $false
+
+          if ($env:WORKFLOW_EVENT_NAME -eq 'workflow_dispatch' -and $env:WORKFLOW_FORCE_REBUILD -eq 'true') {
+            $forceRebuild = $true
+          }
+
+          if (-not $forceRebuild -and $env:WORKFLOW_EVENT_NAME -eq 'push' -and $env:HEAD_COMMIT_MESSAGE -match '\[force-rebuild\]') {
+            $forceRebuild = $true
+          }
+
+          "force_rebuild=$($forceRebuild.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
+
+          if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($existingReleaseUrl)) {
+            "existing_release_url=$existingReleaseUrl" >> $env:GITHUB_OUTPUT
+            if ($forceRebuild) {
+              "skip_build=false" >> $env:GITHUB_OUTPUT
+              "skip_publish=false" >> $env:GITHUB_OUTPUT
+              Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "Version $tag already exists at $existingReleaseUrl, but force rebuild is enabled. Build and publish steps will continue and overwrite assets."
+            }
+            elseif ($env:WORKFLOW_EVENT_NAME -eq 'push') {
+              "skip_build=false" >> $env:GITHUB_OUTPUT
+              "skip_publish=true" >> $env:GITHUB_OUTPUT
+              Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "Version $tag is already published at $existingReleaseUrl. A verification build will still run for this push, but publish steps will be skipped."
+            }
+            else {
+              "skip_build=true" >> $env:GITHUB_OUTPUT
+              "skip_publish=true" >> $env:GITHUB_OUTPUT
+              Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "Version $tag is already published at $existingReleaseUrl. Build and publish steps were skipped."
+            }
+          }
+          else {
+            "skip_build=false" >> $env:GITHUB_OUTPUT
+            "skip_publish=false" >> $env:GITHUB_OUTPUT
+            if ($forceRebuild) {
+              Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "Force rebuild is enabled. Version $tag is not currently published, so build and publish steps will continue."
+            }
+            else {
+              Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "Version $tag is new. Build and publish steps will continue."
+            }
+          }
+
+          $global:LASTEXITCODE = 0
+          exit 0
+
+      - name: Enable Windows long paths
+        shell: pwsh
+        run: |
+          New-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" -Name "LongPathsEnabled" -Value 1 -PropertyType DWORD -Force
+          $applied = (Get-ItemPropertyValue -Path "HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem" -Name "LongPathsEnabled") -eq 1
+          if (-not $applied) { throw "Failed to enable Windows long path support." }
+          git config --system core.longpaths true
+          Write-Host "Windows long path support enabled."
+
+      - name: Ensure Inno Setup
+        if: ${{ steps.release_check.outputs.skip_build != 'true' && (github.event_name != 'workflow_dispatch' || inputs.build_installer) }}
+        shell: pwsh
+        run: |
+          if (-not (Get-Command ISCC.exe -ErrorAction SilentlyContinue)) {
+            choco install innosetup --no-progress -y
+          }
+
+      - name: Download existing build metadata
+        if: ${{ steps.release_check.outputs.skip_build == 'true' }}
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $cacheDir = '.release-cache'
+          New-Item -ItemType Directory -Force -Path $cacheDir | Out-Null
+          try {
+            gh release download '${{ steps.source.outputs.release_tag }}' --repo '${{ github.repository }}' --pattern 'build-metadata.json' --dir $cacheDir --clobber
+          } catch {
+            Write-Warning "Could not download existing build metadata: $_"
+          }
+
+      - name: Build offline bundle
+        if: ${{ steps.release_check.outputs.skip_build != 'true' }}
+        shell: pwsh
+        run: |
+          $arguments = @(
+            '-NoProfile',
+            '-File',
+            './scripts/build-offline-package.ps1',
+            '-ConfigPath',
+            'config/codex-only-local.json',
+            '-MetadataOutputPath',
+            'build-metadata.json',
+            '-WorkRoot',
+            # Use a short absolute path so Inno Setup can compress files with deeply-nested
+            # node_modules paths. The staging path under the GitHub Actions workspace root
+            # (D:\a\<repo>\<repo>\build\work\stage\...) reaches 260+ characters, which exceeds
+            # the Windows MAX_PATH limit that Inno Setup's file I/O uses.
+            'D:\cb'
+          )
+
+          if ('${{ github.event_name }}' -eq 'workflow_dispatch' -and '${{ inputs.build_installer }}' -eq 'false') {
+            $arguments += '-SkipInstaller'
+          }
+
+          $process = Start-Process -FilePath 'pwsh' -ArgumentList $arguments -NoNewWindow -Wait -PassThru
+          if ($process.ExitCode -ne 0) {
+            throw "build-offline-package.ps1 failed with exit code $($process.ExitCode)."
+          }
+
+      - name: Read build metadata
+        if: ${{ steps.release_check.outputs.skip_build != 'true' }}
+        id: build
+        shell: pwsh
+        run: |
+          $metadata = Get-Content 'build-metadata.json' -Raw | ConvertFrom-Json
+          "release_tag=$($metadata.releaseTag)" >> $env:GITHUB_OUTPUT
+          "release_name=$($metadata.releaseName)" >> $env:GITHUB_OUTPUT
+          "artifact_dir=$($metadata.artifactDirectoryRelative)" >> $env:GITHUB_OUTPUT
+          "version=$($metadata.version)" >> $env:GITHUB_OUTPUT
+          "package_id=$($metadata.packageId)" >> $env:GITHUB_OUTPUT
+          "generated_at=$($metadata.generatedAt)" >> $env:GITHUB_OUTPUT
+          "source_mode=$($metadata.appSource.mode)" >> $env:GITHUB_OUTPUT
+
+      - name: Verify offline bundle
+        if: ${{ steps.release_check.outputs.skip_build != 'true' }}
+        shell: pwsh
+        run: |
+          $arguments = @(
+            '-NoProfile',
+            '-File',
+            './scripts/verify-offline-package.ps1',
+            '-BuildMetadataPath',
+            'build-metadata.json',
+            '-ConfigPath',
+            'config/codex-only-local.json'
+          )
+
+          if ('${{ github.event_name }}' -ne 'workflow_dispatch' -or '${{ inputs.build_installer }}' -ne 'false') {
+            $arguments += '-RequireInstallerAsset'
+          }
+
+          $process = Start-Process -FilePath 'pwsh' -ArgumentList $arguments -NoNewWindow -Wait -PassThru
+          if ($process.ExitCode -ne 0) {
+            throw "verify-offline-package.ps1 failed with exit code $($process.ExitCode)."
+          }
+
+      - name: Build release notes
+        shell: pwsh
+        run: |
+          $skipBuild = '${{ steps.release_check.outputs.skip_build }}' -eq 'true'
+          $packageId = '${{ steps.source.outputs.package_id }}'
+          $version = '${{ steps.source.outputs.version }}'
+          $sourceMode = '${{ steps.source.outputs.source_mode }}'
+          $generatedAt = ''
+          $changelog = $null
+
+          if (-not $skipBuild) {
+            $packageId = '${{ steps.build.outputs.package_id }}'
+            $version = '${{ steps.build.outputs.version }}'
+            $sourceMode = '${{ steps.build.outputs.source_mode }}'
+            $generatedAt = '${{ steps.build.outputs.generated_at }}'
+          }
+          elseif (Test-Path '.release-cache/build-metadata.json') {
+            $existingMetadata = Get-Content '.release-cache/build-metadata.json' -Raw | ConvertFrom-Json
+            $packageId = $existingMetadata.packageId
+            $version = $existingMetadata.version
+            $sourceMode = $existingMetadata.appSource.mode
+            $generatedAt = $existingMetadata.generatedAt
+          }
+
+          $lines = [System.Collections.Generic.List[string]]::new()
+          $lines.Add("Source package: `` $packageId ``")
+          $lines.Add("Store version: `` $version ``")
+          $lines.Add("Source mode: `` $sourceMode ``")
+          if ($generatedAt) {
+            $lines.Add("Built at: `` $generatedAt ``")
+          }
+
+          if ($version) {
+            try {
+              $changelogJson = node ./scripts/get-store-app-changelog.mjs --version $version --recent-app-limit 5
+              $changelog = $changelogJson | ConvertFrom-Json
+              if ($changelog.releaseNotesMarkdown) {
+                $lines.Add("")
+                $lines.Add("## Official Codex app release notes")
+                $lines.Add("")
+                $lines.Add($changelog.releaseNotesMarkdown)
+              }
+            } catch {
+              Write-Warning "Could not fetch app changelog: $_"
+            }
+          }
+
+          if ($changelog -and $changelog.recentAppReleases -and $changelog.recentAppReleases.Count -gt 0) {
+            $lines.Add("")
+            $lines.Add("## Official Codex app history")
+            $lines.Add("")
+            foreach ($release in $changelog.recentAppReleases) {
+              $publishedAt = if ($release.publishedAt) { $release.publishedAt } else { 'unknown date' }
+              $title = if ([string]::IsNullOrWhiteSpace($release.title)) { 'Codex app release' } else { $release.title }
+              $sourceUrl = if ([string]::IsNullOrWhiteSpace($release.sourceUrl)) { 'https://developers.openai.com/codex/changelog?type=codex-app' } else { $release.sourceUrl }
+              $lines.Add("- [$title]($sourceUrl) - $publishedAt")
+            }
+          }
+
+          $lines.Add("")
+          $lines.Add("## Assets")
+          $lines.Add("")
+          $lines.Add("- portable zip")
+          $lines.Add("- setup exe")
+          $lines.Add("- bundled skills zip")
+          $lines.Add("- ``models-api.json`` (optional API/custom-provider catalog; see https://github.com/${{ github.repository }}/blob/main/docs/models-api.md)")
+          $lines.Add("- SHA256SUMS.txt")
+
+          ($lines -join "`n") | Set-Content -Path 'release-notes.md' -Encoding UTF8 -NoNewline
+
+      - name: Upload workflow artifacts
+        if: ${{ steps.release_check.outputs.skip_build != 'true' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: ${{ steps.build.outputs.release_tag }}
+          path: ${{ steps.build.outputs.artifact_dir }}
+          if-no-files-found: error
+
+      - name: Publish release assets
+        if: ${{ github.event_name != 'pull_request' && steps.release_check.outputs.skip_publish != 'true' }}
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ steps.build.outputs.release_tag }}
+          name: ${{ steps.build.outputs.release_name }}
+          files: ${{ steps.build.outputs.artifact_dir }}/*
+          overwrite_files: true
+          body_path: release-notes.md
+
+      - name: Update existing release notes
+        if: ${{ steps.release_check.outputs.skip_build == 'true' && steps.release_check.outputs.skip_publish == 'true' }}
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release edit '${{ steps.source.outputs.release_tag }}' --repo '${{ github.repository }}' --notes-file 'release-notes.md'

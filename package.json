@@ -1,0 +1,19 @@
+{
+  "name": "codex-app-offline",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Build Codex offline packages from Store bundle sources and embedded skills.",
+  "license": "UNLICENSED",
+  "scripts": {
+    "test": "node --test \"./scripts/test/*.test.cjs\"",
+    "check": "node --check ./scripts/patch-app-asar.mjs && node --check ./scripts/offline-direct-launch-smoke.mjs && node --test \"./scripts/test/*.test.cjs\"",
+    "build:codex-only": "pwsh -NoProfile -File ./scripts/build-offline-package.ps1 -ConfigPath ./config/codex-only-local.json -RequireInstaller",
+    "build:codex-only:no-installer": "pwsh -NoProfile -File ./scripts/build-offline-package.ps1 -ConfigPath ./config/codex-only-local.json -SkipInstaller",
+    "resolve:store-bundle": "node ./scripts/resolve-store-bundle-url.mjs"
+  },
+  "devDependencies": {
+    "@electron/asar": "3.2.18",
+    "@electron/fuses": "^2.1.0",
+    "playwright": "1.58.2"
+  }
+}
