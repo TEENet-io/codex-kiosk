@@ -214,6 +214,13 @@ jobs:
             Write-Warning "Could not download existing build metadata: $_"
           }
 
+      - name: Install Playwright browser
+        # The store-bundle resolver (resolve-store-bundle-url.mjs) drives a
+        # headless Chromium via Playwright to read the MSIX download URL from
+        # rg-adguard. npm ci installs the package but not the browser binary.
+        if: ${{ steps.release_check.outputs.skip_build != 'true' }}
+        run: npx playwright install chromium chromium-headless-shell
+
       - name: Build offline bundle
         if: ${{ steps.release_check.outputs.skip_build != 'true' }}
         shell: pwsh
