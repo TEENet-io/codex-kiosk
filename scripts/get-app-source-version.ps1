@@ -27,7 +27,12 @@ $mode = [string]$config.appSource.mode
 
 switch ($mode) {
     'rg_adguard' {
-        $resolverJson = node (Join-Path $scriptRoot 'resolve-store-bundle-url.mjs') --package-family-name $config.appSource.packageFamilyName --ring $config.appSource.ring
+        $resolverArgs = @('--package-family-name', $config.appSource.packageFamilyName, '--ring', $config.appSource.ring)
+        $pinnedProp = $config.appSource.PSObject.Properties['pinnedVersion']
+        if ($null -ne $pinnedProp -and -not [string]::IsNullOrWhiteSpace([string]$pinnedProp.Value)) {
+            $resolverArgs += @('--version', [string]$pinnedProp.Value)
+        }
+        $resolverJson = node (Join-Path $scriptRoot 'resolve-store-bundle-url.mjs') @resolverArgs
         if ($LASTEXITCODE -ne 0) {
             throw 'The rg-adguard resolver failed.'
         }

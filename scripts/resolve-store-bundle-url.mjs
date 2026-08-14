@@ -181,7 +181,27 @@ async function main() {
     .map((entry) => ({ ...entry, score: scoreCandidate(entry.fileName) }))
     .sort((left, right) => right.score - left.score || left.fileName.localeCompare(right.fileName));
 
-  const selected = ranked[0];
+  // Pin a specific store version (--version / CODEX_PIN_VERSION) instead of the
+  // latest, so a known-good bundle the patches match is used deterministically.
+  const pinnedVersion = (args.version || process.env.CODEX_PIN_VERSION || '').trim();
+  let selected;
+  if (pinnedVersion) {
+    selected = ranked.find((entry) => {
+      const m = entry.fileName.match(/_(\d+(?:\.\d+)+)_/);
+      return m && m[1] === pinnedVersion;
+    });
+    if (!selected) {
+      const available = ranked
+        .map((entry) => (entry.fileName.match(/_(\d+(?:\.\d+)+)_/) || [])[1])
+        .filter(Boolean);
+      throw new Error(
+        `Pinned version ${pinnedVersion} not found among rg-adguard candidates. ` +
+        `Available: ${available.join(', ') || '(none)'}`,
+      );
+    }
+  } else {
+    selected = ranked[0];
+  }
   const versionMatch = selected.fileName.match(/_(\d+(?:\.\d+)+)_/);
 
   process.stdout.write(`${JSON.stringify({

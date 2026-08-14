@@ -282,7 +282,12 @@ function Export-AppSource {
             }
         }
         'rg_adguard' {
-            $resolverJson = node (Join-Path $ScriptRoot 'resolve-store-bundle-url.mjs') --package-family-name $Config.appSource.packageFamilyName --ring $Config.appSource.ring
+            $resolverArgs = @('--package-family-name', $Config.appSource.packageFamilyName, '--ring', $Config.appSource.ring)
+            $pinnedProp = $Config.appSource.PSObject.Properties['pinnedVersion']
+            if ($null -ne $pinnedProp -and -not [string]::IsNullOrWhiteSpace([string]$pinnedProp.Value)) {
+                $resolverArgs += @('--version', [string]$pinnedProp.Value)
+            }
+            $resolverJson = node (Join-Path $ScriptRoot 'resolve-store-bundle-url.mjs') @resolverArgs
             if ($LASTEXITCODE -ne 0) {
                 throw 'The rg-adguard resolver failed.'
             }
