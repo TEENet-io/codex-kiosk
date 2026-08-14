@@ -21,11 +21,20 @@ trap {
     throw
 }
 
+# Stamp every trace with total elapsed time and the delta since the previous
+# one, so the existing checkpoints double as a build profile: the CI log then
+# shows directly which phase costs the minutes, instead of having to guess.
+$script:BuildTraceStopwatch = [System.Diagnostics.Stopwatch]::StartNew()
+$script:BuildTraceLastElapsed = [TimeSpan]::Zero
+
 function Write-BuildTrace {
     param([string]$Message)
 
     if ($env:GITHUB_ACTIONS -eq 'true') {
-        Write-Host "[build-offline] $Message"
+        $elapsed = $script:BuildTraceStopwatch.Elapsed
+        $delta = ($elapsed - $script:BuildTraceLastElapsed).TotalSeconds
+        $script:BuildTraceLastElapsed = $elapsed
+        Write-Host ('[build-offline] {0} (+{1:0.0}s) {2}' -f $elapsed.ToString('hh\:mm\:ss'), $delta, $Message)
     }
 }
 
