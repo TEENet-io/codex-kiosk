@@ -13,6 +13,15 @@
 
 > “本地任务”表示任务在本机工作区和本机 app-server 中执行，不表示模型推理完全离线。使用 OpenAI 或其他在线模型仍然需要网络。完全离线推理需要另外配置兼容的本地模型 Provider。
 
+## 交付形态
+
+本仓库只产出**桌面版**：`config/codex-only-local.json` 中 `packaging.crossPlatformWeb` 为 `false`，
+浏览器版 Gateway 不参与构建、不打包、不验证。`web-gateway/` 目录仍保留源码，
+其中 `gateway/src/ipc/codex/capabilityContractData.cjs` 是桌面补丁 marker 清单的事实来源，
+构建与验证都会读取它，**不可删除**。
+
+Computer Use 完整保留，未做任何裁剪。
+
 ## 仓库结构
 
 ```text
@@ -22,7 +31,7 @@
 ├── docs/                       # 架构和模型配置文档
 ├── installer/                  # Inno Setup 安装器模板与语言文件
 ├── scripts/                    # 下载、补丁、打包、验证和测试脚本
-├── web-gateway/                # 可选浏览器版 Gateway
+├── web-gateway/                # 浏览器版 Gateway（本仓库已关闭，见下）
 ├── BUILDING.md                 # 完整环境准备与构建说明
 ├── CHANGELOG.md
 ├── package.json
@@ -91,7 +100,13 @@ pwsh -NoProfile -File .\scripts\verify-offline-package.ps1 `
 ## 重要限制
 
 - 该项目不是 OpenAI 官方发行版。
-- 补丁与指定上游版本结构绑定；上游前端 bundle 改动后，构建会主动失败并要求重新适配。
+- 补丁与上游 bundle 结构绑定；上游前端改动后，构建会主动失败并要求重新适配。
+  **Codex 每发布一个新版本，都可能需要一次补丁适配**，适配方法见
+  [版本适配与维护](docs/版本适配与维护.md)。
+- 构建取的是 Store 上的**当前最新版**，而灰度期间同一查询会随机返回不同版本，
+  因此同一个 commit 重跑 CI 可能结果不同。当前已同时适配 26.803.10989.0 与 26.810.4967.0。
+- CI 全绿只代表**补丁已正确应用**，不代表 ChatGPT 入口确实消失或 Computer Use 确实可用；
+  这两点必须在 Windows 真机上人工验收。
 - 重新打包后的程序不保留 Microsoft Store 原包签名。
 - 不应绕过账户权限、组织策略、模型服务授权或软件许可。
 - 发布前应在干净 Windows 虚拟机中完成安装、登录、本地任务、重启和卸载验收。
@@ -99,6 +114,7 @@ pwsh -NoProfile -File .\scripts\verify-offline-package.ps1 `
 ## 文档
 
 - [构建环境与发布流程](BUILDING.md)
+- [版本适配与维护](docs/版本适配与维护.md) — Codex 更新后如何适配补丁、本地复现方法、故障排查
 - [Codex-only 架构与补丁说明](docs/codex-only-fork-github-actions.md)
 - [API / 自定义 Provider 模型目录](docs/models-api.md)
 - [变更记录](CHANGELOG.md)
