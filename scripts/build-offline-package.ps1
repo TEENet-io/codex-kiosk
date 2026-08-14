@@ -870,25 +870,28 @@ $dailyLaunchVbs = @(
 )
 $dailyLaunchVbs | Set-Content -Path (Join-Path $packageRoot 'Codex.vbs') -Encoding ASCII
 
-$webLaunchCmd = @(
-    '@echo off',
-    'setlocal',
-    'where node >nul 2>nul',
-    'if errorlevel 1 (',
-    '  echo Node.js was not found. Install Node.js 22 or newer, then run this launcher again.',
-    '  pause',
-    '  exit /b 1',
-    ')',
-    'node "%~dp0_internal\web\start-web.mjs" %*',
-    'set WEB_EXIT=%ERRORLEVEL%',
-    'if not "%WEB_EXIT%"=="0" (',
-    '  echo.',
-    '  echo Codex Web stopped with exit code %WEB_EXIT%.',
-    '  pause',
-    ')',
-    'exit /b %WEB_EXIT%'
-)
-$webLaunchCmd | Set-Content -Path (Join-Path $packageRoot 'Codex Web.cmd') -Encoding ASCII
+# Only ship the "Codex Web" launcher when the web gateway is actually bundled.
+if ($config.packaging.crossPlatformWeb) {
+    $webLaunchCmd = @(
+        '@echo off',
+        'setlocal',
+        'where node >nul 2>nul',
+        'if errorlevel 1 (',
+        '  echo Node.js was not found. Install Node.js 22 or newer, then run this launcher again.',
+        '  pause',
+        '  exit /b 1',
+        ')',
+        'node "%~dp0_internal\web\start-web.mjs" %*',
+        'set WEB_EXIT=%ERRORLEVEL%',
+        'if not "%WEB_EXIT%"=="0" (',
+        '  echo.',
+        '  echo Codex Web stopped with exit code %WEB_EXIT%.',
+        '  pause',
+        ')',
+        'exit /b %WEB_EXIT%'
+    )
+    $webLaunchCmd | Set-Content -Path (Join-Path $packageRoot 'Codex Web.cmd') -Encoding ASCII
+}
 
 $setupCmd = @(
     '@echo off',
@@ -936,7 +939,13 @@ $repairChromeHostCmd = @(
 )
 $repairChromeHostCmd | Set-Content -Path (Join-Path $toolsRoot 'Repair Chrome Host.cmd') -Encoding ASCII
 
-$webGatewayInfo = Add-WebGatewayRuntime -RepoRoot $repoRoot -InternalRoot $internalRoot
+# Web gateway (browser mode) is only built when cross-platform web packaging is
+# enabled. Desktop-only builds skip it entirely -- no embedded _internal\web
+# runtime, no gateway compile/materialize step.
+$webGatewayInfo = $null
+if ($config.packaging.crossPlatformWeb) {
+    $webGatewayInfo = Add-WebGatewayRuntime -RepoRoot $repoRoot -InternalRoot $internalRoot
+}
 
 Write-BuildTrace 'Resolving skill source roots.'
 $skillSources = @()
