@@ -354,7 +354,6 @@ try {
     $requiredPortableFiles = @(
         'Codex.cmd',
         'Codex.vbs',
-        'Codex Web.cmd',
         'Setup Codex.cmd',
         'README.md',
         'CHANGELOG.md',
@@ -362,15 +361,6 @@ try {
         '_internal\setup-codex-offline.ps1',
         '_internal\models-api.json',
         '_internal\repair-chrome-host.ps1',
-        '_internal\web\start-web.mjs',
-        '_internal\web\gateway\dist\server.js',
-        '_internal\web\gateway\dist\ipc\codex\pluginServiceCompat.cjs',
-        '_internal\web\web-shell\index.html',
-        '_internal\web\web-shell\codex-bridge-polyfill.js',
-        '_internal\web\node_modules\express\package.json',
-        '_internal\web\node_modules\ws\package.json',
-        '_internal\web\node_modules\smol-toml\package.json',
-        '_internal\web\node_modules\@electron\asar\package.json',
         '_internal\tools\Launch Codex Direct.cmd',
         '_internal\tools\Sync Default Skills.cmd',
         '_internal\tools\Sync All Skills.cmd',
@@ -388,6 +378,22 @@ try {
         '_internal\powershell-shim\CodexOfflineShim\sync-thread.js',
         '_internal\powershell-shim\CodexOfflineShim\repair-threads.js'
     )
+
+    # Web-gateway files only ship when cross-platform web packaging is enabled.
+    if ($crossPlatformWebEnabled) {
+        $requiredPortableFiles += @(
+            'Codex Web.cmd',
+            '_internal\web\start-web.mjs',
+            '_internal\web\gateway\dist\server.js',
+            '_internal\web\gateway\dist\ipc\codex\pluginServiceCompat.cjs',
+            '_internal\web\web-shell\index.html',
+            '_internal\web\web-shell\codex-bridge-polyfill.js',
+            '_internal\web\node_modules\express\package.json',
+            '_internal\web\node_modules\ws\package.json',
+            '_internal\web\node_modules\smol-toml\package.json',
+            '_internal\web\node_modules\@electron\asar\package.json'
+        )
+    }
 
     foreach ($relativePath in $requiredPortableFiles) {
         $fullPath = Join-Path $portableRoot $relativePath
@@ -607,6 +613,8 @@ try {
         }
     }
 
+    # Portable web-gateway content checks: only when the build shipped it.
+    if ($crossPlatformWebEnabled) {
     $webLauncherPath = Join-Path $portableRoot 'Codex Web.cmd'
     $webLauncherContent = Get-Content -Path $webLauncherPath -Raw
     foreach ($needle in @('where node', '%~dp0_internal\web\start-web.mjs')) {
@@ -728,6 +736,7 @@ try {
     $webGatewayDesktopStatePath = Join-Path $portableRoot '_internal\web\gateway\dist\ipc\codex\desktopState.js'
     $webGatewayDesktopStateContent = Get-Content -Path $webGatewayDesktopStatePath -Raw
     Assert-ContentContainsMarkers -Content $webGatewayDesktopStateContent -Markers @('setDesktopFeatureValues', 'normalizeDesktopFeatureValues', './capabilityContract') -Context 'Web gateway desktop state'
+    }
 
     if ($crossPlatformWebEnabled) {
         $webZipPath = Join-Path $artifactRoot $webAssets[0].fileName
