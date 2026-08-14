@@ -6,8 +6,7 @@
   "appSource": {
     "mode": "rg_adguard",
     "packageFamilyName": "OpenAI.Codex_2p2nqsd0c76g0",
-    "ring": "Retail",
-    "pinnedVersion": "26.803.10989.0"
+    "ring": "Retail"
   },
   "skills": {
     "sources": ["build/work/skills-official"],
