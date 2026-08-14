@@ -13,38 +13,14 @@ on:
         required: false
         default: false
         type: boolean
+  # A full run downloads a ~700 MB MSIX, repacks the asar and compresses the
+  # installer, so it is far too heavy to fire on every push to main. Builds are
+  # started by hand from the Actions tab (or `gh workflow run`); the nightly
+  # schedule stays on as the drift probe - it self-skips while the Store version
+  # is unchanged and already released, and only builds when a new Codex ships,
+  # which is exactly when the patches need checking.
   schedule:
     - cron: '15 3 * * *'
-  push:
-    branches:
-      - main
-    paths:
-      - '.github/workflows/build-offline-package.yml'
-      - '.github/workflows/build-offline-package-monitor.yml'
-      - 'README.md'
-      - 'CHANGELOG.md'
-      - 'config/**'
-      - 'docs/models-api.md'
-      - 'installer/**'
-      - 'package.json'
-      - 'package-lock.json'
-      - 'scripts/**'
-      - 'web-gateway/**'
-  pull_request:
-    branches:
-      - main
-    paths:
-      - '.github/workflows/build-offline-package.yml'
-      - '.github/workflows/build-offline-package-monitor.yml'
-      - 'README.md'
-      - 'CHANGELOG.md'
-      - 'config/**'
-      - 'docs/models-api.md'
-      - 'installer/**'
-      - 'package.json'
-      - 'package-lock.json'
-      - 'scripts/**'
-      - 'web-gateway/**'
 
 permissions:
   contents: write
@@ -135,7 +111,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           WORKFLOW_EVENT_NAME: ${{ github.event_name }}
           WORKFLOW_FORCE_REBUILD: ${{ inputs.force_rebuild }}
-          HEAD_COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
         run: |
           if ($env:WORKFLOW_EVENT_NAME -eq 'pull_request') {
             "force_rebuild=false" >> $env:GITHUB_OUTPUT
@@ -154,10 +129,6 @@ jobs:
             $forceRebuild = $true
           }
 
-          if (-not $forceRebuild -and $env:WORKFLOW_EVENT_NAME -eq 'push' -and $env:HEAD_COMMIT_MESSAGE -match '\[force-rebuild\]') {
-            $forceRebuild = $true
-          }
-
           "force_rebuild=$($forceRebuild.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
 
           if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($existingReleaseUrl)) {
@@ -167,10 +138,15 @@ jobs:
               "skip_publish=false" >> $env:GITHUB_OUTPUT
               Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "Version $tag already exists at $existingReleaseUrl, but force rebuild is enabled. Build and publish steps will continue and overwrite assets."
             }
-            elseif ($env:WORKFLOW_EVENT_NAME -eq 'push') {
+            elseif ($env:WORKFLOW_EVENT_NAME -eq 'workflow_dispatch') {
+              # A hand-started run is someone wanting to test a change, so build
+              # it and leave the artifact to download - just do not overwrite the
+              # published release unless force_rebuild says so. Without this a
+              # manual run would silently skip everything once the version has
+              # been released, and report success having built nothing.
               "skip_build=false" >> $env:GITHUB_OUTPUT
               "skip_publish=true" >> $env:GITHUB_OUTPUT
-              Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "Version $tag is already published at $existingReleaseUrl. A verification build will still run for this push, but publish steps will be skipped."
+              Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "Version $tag is already published at $existingReleaseUrl. A verification build will still run, but publish steps will be skipped. Re-run with force_rebuild to overwrite the release assets."
             }
             else {
               "skip_build=true" >> $env:GITHUB_OUTPUT
