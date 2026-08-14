@@ -105,6 +105,15 @@ jobs:
       - name: Install resolver dependencies
         run: npm ci
 
+      - name: Install Playwright browser
+        # The store-bundle resolver (resolve-store-bundle-url.mjs) drives a
+        # headless Chromium via Playwright to read the MSIX download URL from
+        # rg-adguard when the direct API returns no rows (GitHub runner IPs are
+        # frequently rate-limited by rg-adguard). npm ci installs the package
+        # but not the browser binary. This MUST run before "Resolve source
+        # version", which always executes and may hit the browser fallback.
+        run: npx playwright install chromium chromium-headless-shell
+
       - name: Resolve source version
         id: source
         shell: pwsh
@@ -213,13 +222,6 @@ jobs:
           } catch {
             Write-Warning "Could not download existing build metadata: $_"
           }
-
-      - name: Install Playwright browser
-        # The store-bundle resolver (resolve-store-bundle-url.mjs) drives a
-        # headless Chromium via Playwright to read the MSIX download URL from
-        # rg-adguard. npm ci installs the package but not the browser binary.
-        if: ${{ steps.release_check.outputs.skip_build != 'true' }}
-        run: npx playwright install chromium chromium-headless-shell
 
       - name: Build offline bundle
         if: ${{ steps.release_check.outputs.skip_build != 'true' }}
