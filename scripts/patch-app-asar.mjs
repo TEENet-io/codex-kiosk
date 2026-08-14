@@ -2589,6 +2589,13 @@ try {
     /\]\.map\((?<item>[A-Za-z_$][\w$]*)=>\(\{type:`function`,\.\.\.\k<item>,\.\.\.(?<eager>[A-Za-z_$][\w$]*)\.has\(\k<item>\.name\)\?\{\}:\{deferLoading:!0\}\}\)\);return (?<supportsNamespaces>[A-Za-z_$][\w$]*)\?\[\{type:`namespace`,name:(?<appNamespace>[A-Za-z_$][\w$]*),description:`Tools provided by the Codex app\.`,tools:(?<functionTools>[A-Za-z_$][\w$]*)\},\.\.\.(?<namespaceGroups>[A-Za-z_$][\w$]*)\]:\k<functionTools>/;
   const COMPUTER_USE_NODE_REPL_DYNAMIC_TOOLS_TOP_LEVEL_CURRENT_RE =
     /\]\.map\((?<item>[A-Za-z_$][\w$]*)=>\(\{type:`function`,\.\.\.\k<item>,\.\.\.(?<supportsNamespaces>[A-Za-z_$][\w$]*)&&!(?<eager>[A-Za-z_$][\w$]*)\.has\(\k<item>\.name\)\?\{deferLoading:!0\}:\{\}\}\)\);return \k<supportsNamespaces>\?\[\{type:`namespace`,name:(?<appNamespace>[A-Za-z_$][\w$]*),description:`Tools provided by the Codex app\.`,tools:(?<functionTools>[A-Za-z_$][\w$]*)\},\.\.\.(?<namespaceGroups>[A-Za-z_$][\w$]*)\]:(?<fallbackTools>[A-Za-z_$][\w$]*)/;
+  // 26.810+ keeps the same tool-list shape but grew a second deferLoading
+  // predicate (`E&&(!eager.has(name)||flag&&other.includes(name))`), which the
+  // fixed-shape regexes above no longer match. Capture the whole condition
+  // verbatim and re-emit it untouched, so this variant tracks future tweaks to
+  // the predicate without needing another regex each time.
+  const COMPUTER_USE_NODE_REPL_DYNAMIC_TOOLS_TOP_LEVEL_GENERIC_RE =
+    /\]\.map\((?<item>[A-Za-z_$][\w$]*)=>\(\{type:`function`,\.\.\.\k<item>,\.\.\.(?<deferCondition>[^;`]{0,240}?)\?\{deferLoading:!0\}:\{\}\}\)\);return (?<supportsNamespaces>[A-Za-z_$][\w$]*)\?\[\{type:`namespace`,name:(?<appNamespace>[A-Za-z_$][\w$]*),description:`Tools provided by the Codex app\.`,tools:(?<functionTools>[A-Za-z_$][\w$]*)\},\.\.\.(?<namespaceGroups>[A-Za-z_$][\w$]*)\]:(?<fallbackTools>[A-Za-z_$][\w$]*)/;
   const COMPUTER_USE_NODE_REPL_DYNAMIC_TOOL_COMPAT_MISSING_RE =
     /(\(\{namespace:`node_repl`,name:`js`,description:`Execute JavaScript in the persistent Node REPL used by Computer Use\.`,inputSchema:\{[\s\S]{0,700}?required:\[`code`\]\}\}\),)(?!\(\{name:`js`,description:`Execute JavaScript in the persistent Node REPL used by Computer Use\. This forwards to node_repl\.js\.`)/;
   const COMPUTER_USE_NODE_REPL_DYNAMIC_TOOL_CALL_RE =
@@ -2601,6 +2608,12 @@ try {
     /(?<prefix>async function [A-Za-z_$][\w$]*\(\{scope:(?<scope>[A-Za-z_$][\w$]*),serverRequest:(?<serverRequest>[A-Za-z_$][\w$]*),hostId:(?<hostId>[A-Za-z_$][\w$]*),queryClient:(?<queryClient>[A-Za-z_$][\w$]*)\}\)\{let\{id:(?<requestId>[A-Za-z_$][\w$]*),params:(?<params>[A-Za-z_$][\w$]*)\}=\k<serverRequest>,\{threadId:(?<threadId>[A-Za-z_$][\w$]*),tool:(?<tool>[A-Za-z_$][\w$]*)\}=\k<params>;if\(!\k<threadId>\)\{(?<logger>[A-Za-z_$][\w$]*)\.error\(`Missing threadId for dynamic tool call request`,\{safe:\{\},sensitive:\{id:\k<requestId>,params:\k<params>\}\}\);return\}let (?<result>[A-Za-z_$][\w$]*),(?<namespaceOk>[A-Za-z_$][\w$]*)=\k<params>\.namespace===[^,;]+,(?<compatOk>[A-Za-z_$][\w$]*)=\k<params>\.namespace==null&&[^;]+;)(?<gate>if\([A-Za-z_$][\w$]*!=null\)\k<result>=[A-Za-z_$][\w$]*;else if\(!\k<namespaceOk>&&!\k<compatOk>\)\k<result>=(?<failureFn>[A-Za-z_$][\w$]*)\(`Unsupported dynamic tool namespace: \$\{\k<params>\.namespace\}`\);else)/;
   const COMPUTER_USE_NODE_REPL_DYNAMIC_TOOL_CALL_CURRENT_V4_RE =
     /(?<prefix>async function [A-Za-z_$][\w$]*\(\{scope:(?<scope>[A-Za-z_$][\w$]*),serverRequest:(?<serverRequest>[A-Za-z_$][\w$]*),hostId:(?<hostId>[A-Za-z_$][\w$]*),queryClient:(?<queryClient>[A-Za-z_$][\w$]*)\}\)\{let\{id:(?<requestId>[A-Za-z_$][\w$]*),params:(?<params>[A-Za-z_$][\w$]*)\}=\k<serverRequest>,\{threadId:(?<threadId>[A-Za-z_$][\w$]*),tool:(?<tool>[A-Za-z_$][\w$]*)\}=\k<params>;if\(!\k<threadId>\)\{(?<logger>[A-Za-z_$][\w$]*)\.error\(`Missing threadId for dynamic tool call request`,\{safe:\{\},sensitive:\{id:\k<requestId>,params:\k<params>\}\}\);return\}if\([A-Za-z_$][\w$]*\.dynamicToolCalls!=null&&!await [A-Za-z_$][\w$]*\.dynamicToolCalls\.tryClaimExecution\(\{callId:\k<params>\.callId,hostId:\k<hostId>,threadId:\k<threadId>,turnId:\k<params>\.turnId\}\)\)return;let (?<result>[A-Za-z_$][\w$]*),(?<namespaceOk>[A-Za-z_$][\w$]*)=\k<params>\.namespace===[^,;]+,(?<compatOk>[A-Za-z_$][\w$]*)=\k<params>\.namespace==null&&[^,;]+,(?<dynamicResult>[A-Za-z_$][\w$]*)=[^,;]+\?await [^;]+:null,(?<pluginResult>[A-Za-z_$][\w$]*)=\k<params>\.namespace===`plugin_management`\?await [^;]+:null;)(?<gate>if\(\k<pluginResult>!=null\)\k<result>=\k<pluginResult>;else if\(!\k<namespaceOk>&&!\k<compatOk>\)\k<result>=(?<failureFn>[A-Za-z_$][\w$]*)\(`Unsupported dynamic tool namespace: \$\{\k<params>\.namespace\}`\);else if\(\k<dynamicResult>!=null\)\k<result>=\k<dynamicResult>;else)/;
+  // 26.810+ inserts thread-ownership / realtime-delegation / client-coordination
+  // guards between the threadId check and tryClaimExecution, and widened the
+  // plugin branch to `plugin_management`||`openai_settings`. Same handler, same
+  // gate: tolerate arbitrary intervening guards and a wider plugin predicate.
+  const COMPUTER_USE_NODE_REPL_DYNAMIC_TOOL_CALL_CURRENT_V5_RE =
+    /(?<prefix>async function [A-Za-z_$][\w$]*\(\{scope:(?<scope>[A-Za-z_$][\w$]*),serverRequest:(?<serverRequest>[A-Za-z_$][\w$]*),hostId:(?<hostId>[A-Za-z_$][\w$]*),queryClient:(?<queryClient>[A-Za-z_$][\w$]*)\}\)\{let\{id:(?<requestId>[A-Za-z_$][\w$]*),params:(?<params>[A-Za-z_$][\w$]*)\}=\k<serverRequest>,\{threadId:(?<threadId>[A-Za-z_$][\w$]*),tool:(?<tool>[A-Za-z_$][\w$]*)\}=\k<params>;if\(!\k<threadId>\)\{(?<logger>[A-Za-z_$][\w$]*)\.error\(`Missing threadId for dynamic tool call request`,\{safe:\{\},sensitive:\{id:\k<requestId>,params:\k<params>\}\}\);return\}[\s\S]{0,1600}?if\([A-Za-z_$][\w$]*\.dynamicToolCalls!=null&&!await [A-Za-z_$][\w$]*\.dynamicToolCalls\.tryClaimExecution\(\{callId:\k<params>\.callId,hostId:\k<hostId>,threadId:\k<threadId>,turnId:\k<params>\.turnId\}\)\)return;let (?<result>[A-Za-z_$][\w$]*),(?<namespaceOk>[A-Za-z_$][\w$]*)=\k<params>\.namespace===[^,;]+,(?<compatOk>[A-Za-z_$][\w$]*)=\k<params>\.namespace==null&&[^,;]+,(?<dynamicResult>[A-Za-z_$][\w$]*)=[^,;]+\?await [^;]+:null,(?<pluginResult>[A-Za-z_$][\w$]*)=\k<params>\.namespace===`plugin_management`[^;]{0,240}?\?await [^;]+:null;)(?<gate>if\(\k<pluginResult>!=null\)\k<result>=\k<pluginResult>;else if\(!\k<namespaceOk>&&!\k<compatOk>\)\k<result>=(?<failureFn>[A-Za-z_$][\w$]*)\(`Unsupported dynamic tool namespace: \$\{\k<params>\.namespace\}`\);else if\(\k<dynamicResult>!=null\)\k<result>=\k<dynamicResult>;else)/;
   const COMPUTER_USE_NODE_REPL_RESULT_TEXT_CODE =
     'let _codexOfflineNodeReplStringify=e=>{try{return JSON.stringify(e)}catch{return String(e)}};' +
     'let _codexOfflineNodeReplContentText=e=>Array.isArray(e)?e.map(e=>(e?.type===`text`||e?.type===`inputText`)?String(e.text??``):e?.text!=null?String(e.text):_codexOfflineNodeReplStringify(e)).join(`\\n`):``;' +
@@ -2725,6 +2738,26 @@ try {
       COMPUTER_USE_NODE_REPL_DYNAMIC_TOOL_PATCH_MARKER
     );
   }
+  function computerUseNodeReplDynamicToolsTopLevelGenericReplacement(...args) {
+    const {
+      item,
+      deferCondition,
+      supportsNamespaces,
+      appNamespace,
+      functionTools,
+      namespaceGroups,
+      fallbackTools,
+    } = args.at(-1);
+    return (
+      `].map(${item}=>({type:\`function\`,...${item},` +
+      `...${deferCondition}?{deferLoading:!0}:{}}));` +
+      `return ${supportsNamespaces}?[{type:\`namespace\`,name:${appNamespace},` +
+      `description:\`Tools provided by the Codex app.\`,tools:${functionTools}},` +
+      `...${namespaceGroups},${COMPUTER_USE_NODE_REPL_NAMESPACE_GROUP_SPEC}]` +
+      `:${fallbackTools}.concat([${COMPUTER_USE_NODE_REPL_NAMESPACE_TOOL_SPEC}])` +
+      COMPUTER_USE_NODE_REPL_DYNAMIC_TOOL_PATCH_MARKER
+    );
+  }
   function patchComputerUseNodeReplDynamicTools(content) {
     if (content.includes(COMPUTER_USE_NODE_REPL_DYNAMIC_TOOL_PATCH_MARKER)) {
       return { content, alreadyCorrect: true, patched: false };
@@ -2754,6 +2787,14 @@ try {
       COMPUTER_USE_NODE_REPL_DYNAMIC_TOOLS_TOP_LEVEL_CURRENT_RE,
       computerUseNodeReplDynamicToolsTopLevelCurrentReplacement,
     );
+    if (next !== content) {
+      return { content: next, alreadyCorrect: false, patched: true };
+    }
+
+    next = content.replace(
+      COMPUTER_USE_NODE_REPL_DYNAMIC_TOOLS_TOP_LEVEL_GENERIC_RE,
+      computerUseNodeReplDynamicToolsTopLevelGenericReplacement,
+    );
     return { content: next, alreadyCorrect: false, patched: next !== content };
   }
   function patchComputerUseNodeReplDynamicToolCall(content) {
@@ -2774,6 +2815,12 @@ try {
     if (next === content) {
       next = content.replace(
         COMPUTER_USE_NODE_REPL_DYNAMIC_TOOL_CALL_CURRENT_V4_RE,
+        computerUseNodeReplDynamicToolCallCurrentV2Replacement,
+      );
+    }
+    if (next === content) {
+      next = content.replace(
+        COMPUTER_USE_NODE_REPL_DYNAMIC_TOOL_CALL_CURRENT_V5_RE,
         computerUseNodeReplDynamicToolCallCurrentV2Replacement,
       );
     }
@@ -3052,6 +3099,30 @@ try {
         if (next !== content) {
           return { content: next, alreadyCorrect: false, patched: true };
         }
+      }
+    }
+
+    // 26.810+ gates the whole thing on an empty list and OR-joins several remote
+    // error terms: `<isErr>=<items>.length===0&&(<localFlag>&&<localErr>
+    // ||<cloudTasks>==null&&<cloudErr>||<flag>&&<chatGptConvs>==null&&<err>)`.
+    // Same intent as above: keep only the leading LOCAL term so local archived
+    // chats survive offline, and drop every `<remoteData>==null&&<remoteErr>`
+    // term (cloud tasks and ChatGPT conversations, both unreachable offline).
+    if (isErrorPropMatch) {
+      const isErrorVar = isErrorPropMatch[1];
+      const emptyListCombinedErrorRe = new RegExp(
+        '(^|[^\\w$])(' + isErrorVar + ')=([A-Za-z_$][\\w$]*)\\.length===0&&\\(' +
+          '([A-Za-z_$][\\w$]*&&[A-Za-z_$][\\w$]*)' +
+          '((?:\\|\\|(?:[A-Za-z_$][\\w$]*&&)?[A-Za-z_$][\\w$]*==null&&[A-Za-z_$][\\w$]*){1,3})\\)',
+      );
+      const next = content.replace(
+        emptyListCombinedErrorRe,
+        (_match, prefix, errorVar, itemsVar, localTerm) =>
+          `${prefix}${errorVar}=${itemsVar}.length===0&&(${localTerm})` +
+          ARCHIVED_SETTINGS_OFFLINE_LOCAL_VISIBILITY_PATCH_MARKER,
+      );
+      if (next !== content) {
+        return { content: next, alreadyCorrect: false, patched: true };
       }
     }
 
