@@ -2055,7 +2055,21 @@ console.log(`[verify-offline-package] Verified app.asar patches in ${path.basena
 '@
 
     Set-Content -Path $verifyAsarScriptPath -Value $verifyAsarScript -Encoding UTF8
-    node $verifyAsarScriptPath $repoRoot $asarPath $webGatewayCapabilityContractPath
+    # The asar verifier only reads the DESKTOP_* marker lists off the capability
+    # contract. Those normally come from the built web-gateway copy, which never
+    # exists in a desktop-only build, leaving $webGatewayCapabilityContractPath
+    # unset. Fall back to the repo source of truth - the very file that
+    # check-gate-override-sync.mjs already reads during the build - which
+    # exports the same four DESKTOP_* constants.
+    $asarCapabilityContractPath = if ($crossPlatformWebEnabled) {
+        $webGatewayCapabilityContractPath
+    } else {
+        Join-Path $repoRoot 'web-gateway\gateway\src\ipc\codex\capabilityContractData.cjs'
+    }
+    if (-not (Test-Path -LiteralPath $asarCapabilityContractPath -PathType Leaf)) {
+        throw "Capability contract for asar verification is missing: $asarCapabilityContractPath"
+    }
+    node $verifyAsarScriptPath $repoRoot $asarPath $asarCapabilityContractPath
     if ($LASTEXITCODE -ne 0) {
         throw "asar verification failed with exit code $LASTEXITCODE."
     }
