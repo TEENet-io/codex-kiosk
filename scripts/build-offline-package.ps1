@@ -587,8 +587,20 @@ function Shorten-SkyTslibDependencyPath {
     param([Parameter(Mandatory = $true)][string]$CuaNodeRoot)
 
     $skyDistRoot = Join-Path $CuaNodeRoot 'bin/node_modules/@oai/sky/dist'
-    $cacheRoot = Join-Path $skyDistRoot 'js-dependency-cache'
-    if (-not (Test-Path -LiteralPath $cacheRoot -PathType Container)) {
+    # 26.803 and earlier vendored the Sky JS deps under `js-dependency-cache`;
+    # 26.810 switched to a standard pnpm store at `node_modules/.pnpm`. Both are
+    # vestigial trees that carry only tslib (verified: one package, one file),
+    # and both nest it deep enough to blow the Windows MAX_PATH budget once the
+    # app is installed. Handle either layout, or bail out when neither exists.
+    $cacheRoot = $null
+    foreach ($cacheCandidate in @('js-dependency-cache', 'node_modules/.pnpm')) {
+        $candidatePath = Join-Path $skyDistRoot $cacheCandidate
+        if (Test-Path -LiteralPath $candidatePath -PathType Container) {
+            $cacheRoot = $candidatePath
+            break
+        }
+    }
+    if ($null -eq $cacheRoot) {
         return 0
     }
 
@@ -609,7 +621,7 @@ function Shorten-SkyTslibDependencyPath {
         $source = Get-Content -LiteralPath $jsFile.FullName -Raw
         $matches = @([regex]::Matches(
             $source,
-            '[^"'']*js-dependency-cache[^"'']*tslib/tslib\.es6\.js'
+            '[^"'']*(?:js-dependency-cache|node_modules/\.pnpm)[^"'']*tslib/tslib\.es6\.js'
         ))
         if ($matches.Count -eq 0) {
             continue

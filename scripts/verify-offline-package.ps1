@@ -1088,6 +1088,10 @@ try {
             if (Test-Path (Join-Path $computerUseSkyDistRoot 'js-dependency-cache') -PathType Container) {
                 throw 'Bundled computer-use runtime still contains the long Sky dependency cache path.'
             }
+            # 26.810+ ships the same vestigial tslib tree as a pnpm store instead.
+            if (Test-Path (Join-Path $computerUseSkyDistRoot 'node_modules\.pnpm') -PathType Container) {
+                throw 'Bundled computer-use runtime still contains the long Sky pnpm store path.'
+            }
             $computerUseSkyJavaScript = @(
                 Get-ChildItem -LiteralPath $computerUseSkyDistRoot -Recurse -Filter '*.js' -File
             )
@@ -1098,7 +1102,7 @@ try {
                 throw 'Bundled computer-use runtime does not import its MAX_PATH-safe tslib dependency.'
             }
             $longTslibImports = @(
-                $computerUseSkyJavaScript | Select-String -SimpleMatch 'js-dependency-cache'
+                $computerUseSkyJavaScript | Select-String -Pattern 'js-dependency-cache|node_modules/\.pnpm'
             )
             if ($longTslibImports.Count -gt 0) {
                 throw 'Bundled computer-use runtime still imports the long Sky dependency cache path.'
