@@ -4524,8 +4524,9 @@ try {
     } else if (computerUseNodeReplDynamicToolAlreadyCorrect) {
       log('Computer Use node_repl.js dynamic tool exposure already patched.');
     } else {
-      log('[patch-drift] Could not locate renderer dynamic tools list to expose ' +
-        'Computer Use node_repl.js -- upstream bundle changed. Skipped (non-fatal, test build); adapt before deployment.');
+      throw new Error(
+        'Could not locate renderer dynamic tools list to expose Computer Use node_repl.js.',
+      );
     }
     if (computerUseNodeReplDynamicToolCallPatchedFiles.length > 0) {
       log('Computer Use node_repl.js dynamic tool call bridge patched in ' +
@@ -4533,8 +4534,9 @@ try {
     } else if (computerUseNodeReplDynamicToolCallAlreadyCorrect) {
       log('Computer Use node_repl.js dynamic tool call bridge already patched.');
     } else {
-      log('[patch-drift] Could not locate renderer dynamic tool call handler for ' +
-        'Computer Use node_repl.js -- upstream bundle changed. Skipped (non-fatal, test build); adapt before deployment.');
+      throw new Error(
+        'Could not locate renderer dynamic tool call handler for Computer Use node_repl.js.',
+      );
     }
     if (archivedThreadsPartialListPatchedFiles.length > 0) {
       log('Archived threads partial list fallback patched in ' +
@@ -4542,8 +4544,9 @@ try {
     } else if (archivedThreadsPartialListAlreadyCorrect) {
       log('Archived threads partial list fallback already patched.');
     } else {
-      log('[patch-drift] Could not locate renderer archived thread list pagination ' +
-        '-- upstream bundle changed. Skipped (non-fatal, test build); adapt before deployment.');
+      throw new Error(
+        'Could not locate renderer archived thread list pagination to patch.',
+      );
     }
     if (archivedSettingsOfflineVisibilityPatchedFiles.length > 0) {
       log('Archived settings offline local visibility patched in ' +
@@ -4551,8 +4554,10 @@ try {
     } else if (archivedSettingsOfflineVisibilityAlreadyCorrect) {
       log('Archived settings offline local visibility already patched.');
     } else {
-      log('[patch-drift] Could not locate archived settings panel isError to keep local ' +
-        'archived chats visible offline -- upstream bundle changed. Skipped (non-fatal, test build); adapt before deployment.');
+      throw new Error(
+        'Could not locate archived settings panel isError to keep local ' +
+        'archived chats visible offline.',
+      );
     }
     if (workspaceDependenciesSettingsPatchedFiles.length > 0) {
       log('Workspace Dependencies settings gate patched in ' +
