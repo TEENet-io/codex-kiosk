@@ -32,7 +32,7 @@
   "packaging": {
     "outputDir": "dist/codex-only-local",
     "portableZip": true,
-    "crossPlatformWeb": true,
+    "crossPlatformWeb": false,
     "setupExe": true,
     "skillArchive": true,
     "sourceExportArchive": false
