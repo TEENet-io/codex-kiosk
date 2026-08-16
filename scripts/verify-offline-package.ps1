@@ -1438,8 +1438,32 @@ const sidebarActivityPatchedSurfaceRe = new RegExp(
     `([A-Za-z_$][\\w$]*)=q\\([A-Za-z_$][\\w$]*\\);return \\1&&` +
     '\\(\\2\\.status===`allowed`\\|\\|\\2\\.status===`loading`\\)'
 );
+// 26.810 renamed the access-status accessor (`q(...)` -> `J(...)`). Only that
+// one call is generalised to any identifier; the patch marker and the
+// allowed/loading return shape keep the match pinned to this surface.
+//
+// patch-app-asar.mjs carries the same pair. It was adapted for 26.810 and this
+// copy was not, so the patch applied correctly and verification then reported
+// the surface as missing -- the two must be changed together.
+const sidebarActivityPatchedSurfaceReV2 = new RegExp(
+  `([A-Za-z_$][\\w$]*)=!0${escapeRegExp(SIDEBAR_ACTIVITY_VIEW_PATCH_MARKER)},` +
+    `([A-Za-z_$][\\w$]*)=[A-Za-z_$][\\w$]*\\([A-Za-z_$][\\w$]*\\);return \\1&&` +
+    '\\(\\2\\.status===`allowed`\\|\\|\\2\\.status===`loading`\\)'
+);
+const isSidebarActivityPatched = text =>
+  sidebarActivityPatchedSurfaceRe.test(text) ||
+  sidebarActivityPatchedSurfaceReV2.test(text);
 const sidebarActivityUnpatchedSurfaceRe =
   /([A-Za-z_$][\w$]*)=([A-Za-z_$][\w$]*)\(([A-Za-z_$][\w$]*)\),([A-Za-z_$][\w$]*)=q\([A-Za-z_$][\w$]*\);return \1&&\(\4\.status===`allowed`\|\|\4\.status===`loading`\)\}[^]*?\3=`4039078146`/;
+const sidebarActivityUnpatchedSurfaceReV2 =
+  /([A-Za-z_$][\w$]*)=([A-Za-z_$][\w$]*)\(([A-Za-z_$][\w$]*)\),([A-Za-z_$][\w$]*)=[A-Za-z_$][\w$]*\([A-Za-z_$][\w$]*\);return \1&&\(\4\.status===`allowed`\|\|\4\.status===`loading`\)\}[^]*?\3=`4039078146`/;
+// The widened variant is only trusted when it matches exactly once: a loosened
+// pattern that hits twice is not identifying this surface any more.
+const isSidebarActivityUnpatched = text => {
+  if (sidebarActivityUnpatchedSurfaceRe.test(text)) return true;
+  const global = new RegExp(sidebarActivityUnpatchedSurfaceReV2.source, 'g');
+  return [...text.matchAll(global)].length === 1;
+};
 const legacyPluginsPageSelectionRe = new RegExp(
   `([A-Za-z_$][\\w$]*)=!0${escapeRegExp(RENDERER_KNOWN_STATSIG_GATES_PATCH_MARKER)}` +
     '&&([A-Za-z_$][\\w$]*)===`plugins`&&\\(' +
@@ -1633,13 +1657,13 @@ for (const entry of javaScriptEntries) {
     ]) {
       if (content.includes(residual)) codexOnlyLocalTasksResiduals.push(`${entry}:${residual}`);
     }
-    if (sidebarActivityPatchedSurfaceRe.test(content)) {
+    if (isSidebarActivityPatched(content)) {
       sidebarActivityViewSurfaceSeen = true;
       sidebarActivityViewPatched = true;
     }
     if (
       content.includes('`4039078146`') &&
-      sidebarActivityUnpatchedSurfaceRe.test(content)
+      isSidebarActivityUnpatched(content)
     ) {
       sidebarActivityViewSurfaceSeen = true;
       sidebarActivityViewResiduals.push(entry);
