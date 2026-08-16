@@ -9,7 +9,7 @@ on:
         default: true
         type: boolean
       force_rebuild:
-        description: Rebuild and republish even when the same release tag already exists
+        description: Repackage this upstream Codex again and publish it as the next build number
         required: false
         default: false
         type: boolean
