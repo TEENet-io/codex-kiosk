@@ -145,6 +145,7 @@ import path from 'path';
 import os from 'os';
 import crypto from 'crypto';
 import { assertGateOverrideSync } from './check-gate-override-sync.mjs';
+import { assertJavaScriptSyntax } from './check-js-syntax.mjs';
 
 const require = createRequire(import.meta.url);
 const asar = require('@electron/asar');
@@ -1796,6 +1797,16 @@ function patchChromeBrowserClient(filePath) {
 
   const ambientNetworkPatchMarker =
     '/*codex-offline:browser-use-disable-ambient-network-default*/';
+  // The local the rewritten guard reads the flag into.
+  //
+  // It must not be a single letter. These replacements splice a body around a
+  // parameter name captured from minified code, and the minifier reuses the
+  // short identifiers -- 26.810 renamed the guard's parameter to `t`, so a
+  // hardcoded `let t` landed in a function that already had `t` as its
+  // parameter and produced "Identifier 't' has already been declared". The
+  // patch reported success and verification caught it half an hour later.
+  // A name upstream will never emit cannot collide with whatever was captured.
+  const ambientNetworkLocal = '_codexOfflineAmbientNetworkValue';
   if (content.includes(ambientNetworkPatchMarker)) {
     log('Chrome browser client ambient network default already patched.');
   } else {
@@ -1814,7 +1825,7 @@ function patchChromeBrowserClient(filePath) {
 
       ambientNetworkNeedle = needle;
       ambientNetworkReplacement =
-        `function ${ambientNetworkFunction}(){let t=globalThis.nodeRepl?.requestMeta?.[${ambientNetworkHeader}];return t===!1?!1:!0}${ambientNetworkPatchMarker}`;
+        `function ${ambientNetworkFunction}(){let ${ambientNetworkLocal}=globalThis.nodeRepl?.requestMeta?.[${ambientNetworkHeader}];return ${ambientNetworkLocal}===!1?!1:!0}${ambientNetworkPatchMarker}`;
     } else {
       const ambientEnvVarMatch = content.match(
         /([A-Za-z_$][\w$]*)="BROWSER_USE_DISABLE_AMBIENT_NETWORK"/,
@@ -1855,11 +1866,11 @@ function patchChromeBrowserClient(filePath) {
       if (scopedEnvGuardMatch && scopedRawReaderMatch && ambientEnvVar) {
         ambientNetworkNeedle = scopedEnvGuardMatch[0];
         ambientNetworkReplacement =
-          `function ${scopedEnvGuardMatch[1]}(${scopedEnvGuardMatch[2]}){let t=${scopedRawReaderMatch[3]}(${scopedEnvGuardMatch[2]},${ambientEnvVar});return t==="0"||t==="false"?!1:!0}${ambientNetworkPatchMarker}`;
+          `function ${scopedEnvGuardMatch[1]}(${scopedEnvGuardMatch[2]}){let ${ambientNetworkLocal}=${scopedRawReaderMatch[3]}(${scopedEnvGuardMatch[2]},${ambientEnvVar});return ${ambientNetworkLocal}==="0"||${ambientNetworkLocal}==="false"?!1:!0}${ambientNetworkPatchMarker}`;
       } else if (envGuardMatch && rawReader && ambientEnvVar) {
         ambientNetworkNeedle = envGuardMatch[0];
         ambientNetworkReplacement =
-          `function ${envGuardMatch[1]}(){let t=${rawReader}(${ambientEnvVar});return t==="0"||t==="false"?!1:!0}${ambientNetworkPatchMarker}`;
+          `function ${envGuardMatch[1]}(){let ${ambientNetworkLocal}=${rawReader}(${ambientEnvVar});return ${ambientNetworkLocal}==="0"||${ambientNetworkLocal}==="false"?!1:!0}${ambientNetworkPatchMarker}`;
       }
     }
 
@@ -1876,6 +1887,13 @@ function patchChromeBrowserClient(filePath) {
 
   if (changed) {
     fs.writeFileSync(filePath, content, 'utf8');
+    // Fail at the patch that caused the damage, not half an hour later in
+    // verification. Every replacement above splices hand-written source around
+    // identifiers captured from minified code, so a name collision yields a
+    // file that no longer parses while every patch still reports success --
+    // 26.810 renamed a guard's parameter to `t` and a hardcoded `let t` landed
+    // beside it. Checking here names the file while the patch is on screen.
+    assertJavaScriptSyntax(filePath, 'Chrome browser client');
   }
 }
 

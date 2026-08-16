@@ -42,7 +42,22 @@ function Assert-NodeSyntax {
         [Parameter(Mandatory = $true)][string]$Context
     )
 
-    $syntaxOutput = & node --check $Path 2>&1
+    # Filter in Node, not here.
+    #
+    # `node --check` echoes the offending source line before saying what is
+    # wrong, and these files are minified, so that line can be the entire
+    # 187,000-character file. PowerShell carries a native process's stderr as
+    # objects and cuts any single line off at 64 KB -- measured to be identical
+    # for `2>&1`, `2> file`, and Start-Process -RedirectStandardError, because
+    # the limit is in the stream handling rather than the redirection. On such a
+    # file that throws away the caret and the SyntaxError itself, which is how
+    # the first failure of this kind reached CI as a wall of JavaScript with no
+    # diagnosis attached.
+    #
+    # check-js-syntax.mjs runs the same check and prints only the diagnosis, so
+    # what arrives here is a few short lines.
+    $checkScript = Join-Path $scriptRoot 'check-js-syntax.mjs'
+    $syntaxOutput = & node $checkScript $Path 2>&1
     if ($LASTEXITCODE -ne 0) {
         throw "$Context is not valid JavaScript: $($syntaxOutput -join [Environment]::NewLine)"
     }
