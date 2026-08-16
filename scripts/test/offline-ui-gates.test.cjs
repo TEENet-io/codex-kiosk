@@ -510,6 +510,40 @@ test("renderer gate verifier always blocks residual indirect gate calls", () => 
 // was not, so the patch applied correctly and verification then declared the
 // surface missing from its own output. Whatever these patterns become, both
 // copies have to become it together.
+// The archived-settings patch grew a branch for 26.810 -- the panel gates on an
+// empty list and OR-joins several remote error terms, and the patch keeps only
+// the local one -- while the verifier still only recognised the two older
+// shapes. A correctly patched build was then reported as unpatched, 40 minutes
+// into CI. Every shape the patch can emit has to be a shape verification
+// accepts.
+test("archived settings visibility shapes stay in sync across patch and verify", () => {
+  // Compare on a normalised spelling. The same sub-pattern is written with one
+  // backslash in a regex literal and two inside a string that builds a RegExp,
+  // so searching for either literally finds only half the places it appears.
+  const canonical = (source) => source.split("\\\\").join("\\");
+  const patch = canonical(patchScriptSource);
+  const verify = canonical(verifyScriptSource);
+
+  const emptyListGate = "\\.length===0&&\\(";
+  assert.ok(
+    patch.includes(emptyListGate),
+    "the patch must handle the 26.810 empty-list error gate",
+  );
+  assert.ok(
+    verify.includes(emptyListGate),
+    "verification must accept the shape the patch emits for the 26.810 gate",
+  );
+
+  // Accepting that shape must not mean accepting a build that kept the cloud
+  // terms: the parentheses have to hold exactly the local pair.
+  assert.ok(
+    verify.includes(
+      "\\.length===0&&\\([A-Za-z_$][\\w$]*&&[A-Za-z_$][\\w$]*\\)",
+    ),
+    "verification must require exactly the local term inside the parentheses",
+  );
+});
+
 test("sidebar Activity surface patterns stay in sync across patch and verify", () => {
   // The accessor call, as each file spells it inside a template string.
   const hardcodedAccessor = "=q\\\\(";

@@ -92,6 +92,30 @@ test("26.727 archive verifier accepts the current isError prop layout", () => {
     isVerified("archivedChats:foo,isError:t&&l,onLoadNextPage:d", marker),
     false,
   );
+
+  // 26.810 gates the panel on an empty list and OR-joins several remote error
+  // terms; the patch keeps only the leading local one. Verification has to
+  // accept that shape -- it did not, and reported a correctly patched build as
+  // unpatched -- while still rejecting a build where a cloud term survived,
+  // which is the whole point of the check.
+  assert.equal(
+    isVerified(`archivedChats:foo,_e=H.length===0&&(c&&w)${marker}`, marker),
+    true,
+  );
+  assert.equal(
+    isVerified(
+      `archivedChats:foo,_e=H.length===0&&(c&&w||O==null&&N)${marker}`,
+      marker,
+    ),
+    false,
+  );
+  assert.equal(
+    isVerified(
+      `archivedChats:foo,_e=H.length===0&&(c&&w||te&&ie==null&&ue)${marker}`,
+      marker,
+    ),
+    false,
+  );
 });
 
 test("26.721 Chrome native pipe patch accepts an inline createConnection return", () => {

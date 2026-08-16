@@ -1798,7 +1798,16 @@ for (const entry of javaScriptEntries) {
   archivedSettingsOfflineLocalVisibilityPatched ||=
     content.includes(ARCHIVED_SETTINGS_OFFLINE_LOCAL_VISIBILITY_PATCH_MARKER) &&
     content.includes('archivedChats:') &&
-    /(?:isError:|=)[A-Za-z_$][\w$]*(?:&&[A-Za-z_$][\w$]*)?\/\*codex-offline:archived-settings-offline-local-visibility\*\//.test(content);
+    // One alternative per shape patchArchivedSettingsOfflineVisibility emits.
+    // The third is 26.810's: the panel gates on an empty list and OR-joins
+    // several remote error terms, and the patch keeps only the leading local
+    // one -- `<isErr>=<items>.length===0&&(<localFlag>&&<localErr>)`. Requiring
+    // exactly that parenthesised pair is what proves the cloud terms were
+    // dropped; a build that kept them does not match and is still rejected.
+    //
+    // The patch grew this branch for 26.810 and this check did not, so a
+    // correctly patched build was reported as unpatched.
+    /(?:isError:|=)(?:[A-Za-z_$][\w$]*(?:&&[A-Za-z_$][\w$]*)?|[A-Za-z_$][\w$]*\.length===0&&\([A-Za-z_$][\w$]*&&[A-Za-z_$][\w$]*\))\/\*codex-offline:archived-settings-offline-local-visibility\*\//.test(content);
   featureOverridesPreserveMcpConfigPatched ||=
     content.includes(FEATURE_OVERRIDES_PRESERVE_MCP_CONFIG_PATCH_MARKER) &&
     content.includes('`features.unified_exec`]=!0') &&
