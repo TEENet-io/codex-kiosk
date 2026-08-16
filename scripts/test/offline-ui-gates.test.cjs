@@ -494,7 +494,7 @@ test("renderer gate verifier always blocks residual indirect gate calls", () => 
   );
   assert.match(
     verifyScriptSource,
-    /sidebarActivityPatchedSurfaceRe\.test\(content\)[\s\S]*sidebarActivityViewResiduals/,
+    /sidebarActivityPatchedSurfaceRe\.test\([A-Za-z_$][\w$]*\)[\s\S]*sidebarActivityViewResiduals/,
     "priority verification must bind the marker to its live surface",
   );
   assert.match(
@@ -502,6 +502,48 @@ test("renderer gate verifier always blocks residual indirect gate calls", () => 
     /offlineNetworkModePatchedSurfaceRe\.test\(content\)[\s\S]*offlineNetworkModeResiduals/,
     "QueryClient verification must reject a stale marker in an unrelated chunk",
   );
+});
+
+// patch-app-asar.mjs and verify-offline-package.ps1 each carry their own copy of
+// the sidebar Activity patterns. 26.810 renamed the access-status accessor from
+// `q(...)` to `J(...)`; the patch copy was widened for it and the verify copy
+// was not, so the patch applied correctly and verification then declared the
+// surface missing from its own output. Whatever these patterns become, both
+// copies have to become it together.
+test("sidebar Activity surface patterns stay in sync across patch and verify", () => {
+  // The accessor call, as each file spells it inside a template string.
+  const hardcodedAccessor = "=q\\\\(";
+  const anyAccessor = "=[A-Za-z_$][\\\\w$]*\\\\([A-Za-z_$][\\\\w$]*\\\\);return";
+
+  for (const [name, source] of [
+    ["patch-app-asar.mjs", patchScriptSource],
+    ["verify-offline-package.ps1", verifyScriptSource],
+  ]) {
+    // Every pattern built around the patch marker -- one per accepted shape.
+    const patchedPatterns = source
+      .split("new RegExp(")
+      .slice(1)
+      .map((chunk) => chunk.slice(0, 500))
+      .filter((chunk) => chunk.includes("SIDEBAR_ACTIVITY_VIEW_PATCH_MARKER"));
+
+    assert.ok(
+      patchedPatterns.some((pattern) => pattern.includes(anyAccessor)),
+      `${name} must accept any identifier for the access-status accessor, ` +
+        "or a rename upstream makes it reject correctly patched builds",
+    );
+    assert.ok(
+      patchedPatterns.some((pattern) => pattern.includes(hardcodedAccessor)),
+      `${name} must keep the exact pre-26.810 shape alongside the widened one`,
+    );
+
+    // Widening costs specificity, so the widened unpatched pattern is trusted
+    // only where it identifies exactly one place in the bundle.
+    assert.match(
+      source,
+      /matchAll\([A-Za-z_$][\w$]*\)\]\.length === 1/,
+      `${name} must only trust the widened pattern when it matches exactly once`,
+    );
+  }
 });
 
 test("current Fast mode availability falls back after legacy patterns do not match", () => {
