@@ -1,3 +1,15 @@
+# Reports which upstream Codex the next build would use, before anything is
+# downloaded.
+#
+# It deliberately does NOT produce the release tag. The release is named after
+# the version the application reports about itself, which lives inside
+# app.asar and so is unknowable until the MSIX has been fetched and unpacked --
+# build-offline-package.ps1 composes the tag once it has that.
+#
+# What is knowable here is the MSIX identity version, which is what decides
+# whether this upstream package has already been built. It is emitted as
+# releaseMarker, the string carried in every release name, so CI can answer
+# that by listing releases.
 [CmdletBinding()]
 param(
     [string]$ConfigPath = 'config/offline-package.json'
@@ -42,8 +54,7 @@ switch ($mode) {
             packageId = $config.packageId
             sourceMode = $mode
             version = $resolved.version
-            releaseTag = 'offline-v{0}' -f $resolved.version
-            releaseName = '{0} Offline {1}' -f $config.appName, $resolved.version
+            releaseMarker = 'MSIX {0}' -f $resolved.version
             packageFamilyName = $resolved.packageFamilyName
             selected = $resolved.selected
         } | ConvertTo-Json -Depth 8
@@ -58,8 +69,7 @@ switch ($mode) {
             packageId = $config.packageId
             sourceMode = $mode
             version = $package.Version.ToString()
-            releaseTag = 'offline-v{0}' -f $package.Version
-            releaseName = '{0} Offline {1}' -f $config.appName, $package.Version
+            releaseMarker = 'MSIX {0}' -f $package.Version
             packageFamilyName = $package.PackageFamilyName
             selected = $null
         } | ConvertTo-Json -Depth 8

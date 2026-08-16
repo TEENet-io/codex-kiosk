@@ -1,5 +1,6 @@
 #define MyAppName "__APP_NAME__"
 #define MyAppVersion "__APP_VERSION__"
+#define MyVersionInfoVersion "__VERSION_INFO_VERSION__"
 #define MyAppDirName "__APP_DIR_NAME__"
 #define MySourceRoot "__SOURCE_ROOT__"
 #define MyInstallerRoot "__INSTALLER_ROOT__"
@@ -10,6 +11,13 @@
 AppId={{A68E32B0-4AA6-4B16-9364-B668731F7062}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
+; AppVersion is the number the application displays, plus our build number, so
+; it is not a valid Windows version resource: its third field can exceed 65535
+; (26.803.81509) and the build suffix is not numeric at all. Inno would
+; silently fall back to 0.0.0.0. The MSIX identity version is four numeric
+; fields each capped at 65535 by the AppxManifest schema, so it is always
+; valid here and records which store package this was built from.
+VersionInfoVersion={#MyVersionInfoVersion}
 AppPublisher=OpenAI
 DefaultDirName={%USERPROFILE|{localappdata}}\Codex
 DefaultGroupName={#MyAppDirName}

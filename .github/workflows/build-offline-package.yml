@@ -95,8 +95,7 @@ jobs:
         shell: pwsh
         run: |
           $metadata = & ./scripts/get-app-source-version.ps1 -ConfigPath 'config/codex-only-local.json' | ConvertFrom-Json
-          "release_tag=$($metadata.releaseTag)" >> $env:GITHUB_OUTPUT
-          "release_name=$($metadata.releaseName)" >> $env:GITHUB_OUTPUT
+          "release_marker=$($metadata.releaseMarker)" >> $env:GITHUB_OUTPUT
           "version=$($metadata.version)" >> $env:GITHUB_OUTPUT
           "package_id=$($metadata.packageId)" >> $env:GITHUB_OUTPUT
           "source_mode=$($metadata.sourceMode)" >> $env:GITHUB_OUTPUT
@@ -112,6 +111,32 @@ jobs:
           WORKFLOW_EVENT_NAME: ${{ github.event_name }}
           WORKFLOW_FORCE_REBUILD: ${{ inputs.force_rebuild }}
         run: |
+          # Which releases were already built from this upstream MSIX. The tag
+          # cannot answer that any more: releases are named after the version
+          # the application displays, which is only readable after the MSIX has
+          # been downloaded and unpacked. Every release name carries the MSIX
+          # version as a marker, so matching on that answers it from a listing.
+          $repo = '${{ github.repository }}'
+          $marker = '${{ steps.source.outputs.release_marker }}'
+          # tagName and name only: `gh release list --json` does not offer url
+          # (that is a `gh release view` field), and asking for it fails the
+          # step outright. The URL is derivable from the tag anyway.
+          $listed = gh release list --repo $repo --limit 200 --json tagName,name
+          if ($LASTEXITCODE -ne 0) {
+            # Guessing here would be worse than stopping: an empty list reads as
+            # "never built", which republishes build 1 over an existing release
+            # and hands the fleet a version string it has already seen.
+            throw "gh release list failed with exit code $LASTEXITCODE; cannot determine the build number."
+          }
+          $existing = @($listed | ConvertFrom-Json | Where-Object { $_.name -like "*($marker)*" })
+
+          # Each rebuild of the same upstream gets the next number, so a
+          # re-patched package is a distinct version rather than an invisible
+          # overwrite -- the fleet compares versions for equality and would
+          # otherwise skip installing the fix.
+          $buildNumber = $existing.Count + 1
+          "build_number=$buildNumber" >> $env:GITHUB_OUTPUT
+
           if ($env:WORKFLOW_EVENT_NAME -eq 'pull_request') {
             "force_rebuild=false" >> $env:GITHUB_OUTPUT
             "skip_build=false" >> $env:GITHUB_OUTPUT
@@ -120,9 +145,9 @@ jobs:
             exit 0
           }
 
-          $tag = '${{ steps.source.outputs.release_tag }}'
-          $repo = '${{ github.repository }}'
-          $existingReleaseUrl = gh release view $tag --repo $repo --json url --jq '.url' 2>$null
+          $tag = if ($existing.Count -gt 0) { $existing[0].tagName } else { '' }
+          "existing_release_tag=$tag" >> $env:GITHUB_OUTPUT
+          $existingReleaseUrl = if ($tag) { "https://github.com/$repo/releases/tag/$tag" } else { '' }
           $forceRebuild = $false
 
           if ($env:WORKFLOW_EVENT_NAME -eq 'workflow_dispatch' -and $env:WORKFLOW_FORCE_REBUILD -eq 'true') {
@@ -131,38 +156,33 @@ jobs:
 
           "force_rebuild=$($forceRebuild.ToString().ToLowerInvariant())" >> $env:GITHUB_OUTPUT
 
-          if ($LASTEXITCODE -eq 0 -and -not [string]::IsNullOrWhiteSpace($existingReleaseUrl)) {
+          if ($existing.Count -gt 0) {
             "existing_release_url=$existingReleaseUrl" >> $env:GITHUB_OUTPUT
             if ($forceRebuild) {
               "skip_build=false" >> $env:GITHUB_OUTPUT
               "skip_publish=false" >> $env:GITHUB_OUTPUT
-              Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "Version $tag already exists at $existingReleaseUrl, but force rebuild is enabled. Build and publish steps will continue and overwrite assets."
+              Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "$marker was already built as $tag ($existingReleaseUrl), but force rebuild is enabled. This run publishes build $buildNumber as a NEW release; the existing one is left alone."
             }
             elseif ($env:WORKFLOW_EVENT_NAME -eq 'workflow_dispatch') {
               # A hand-started run is someone wanting to test a change, so build
-              # it and leave the artifact to download - just do not overwrite the
-              # published release unless force_rebuild says so. Without this a
-              # manual run would silently skip everything once the version has
-              # been released, and report success having built nothing.
+              # it and leave the artifact to download - just do not publish
+              # unless force_rebuild says so. Without this a manual run would
+              # silently skip everything once the version has been released,
+              # and report success having built nothing.
               "skip_build=false" >> $env:GITHUB_OUTPUT
               "skip_publish=true" >> $env:GITHUB_OUTPUT
-              Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "Version $tag is already published at $existingReleaseUrl. A verification build will still run, but publish steps will be skipped. Re-run with force_rebuild to overwrite the release assets."
+              Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "$marker was already built as $tag ($existingReleaseUrl). A verification build will still run, but publish steps will be skipped. Re-run with force_rebuild to publish it as build $buildNumber."
             }
             else {
               "skip_build=true" >> $env:GITHUB_OUTPUT
               "skip_publish=true" >> $env:GITHUB_OUTPUT
-              Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "Version $tag is already published at $existingReleaseUrl. Build and publish steps were skipped."
+              Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "$marker was already built as $tag ($existingReleaseUrl). Build and publish steps were skipped."
             }
           }
           else {
             "skip_build=false" >> $env:GITHUB_OUTPUT
             "skip_publish=false" >> $env:GITHUB_OUTPUT
-            if ($forceRebuild) {
-              Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "Force rebuild is enabled. Version $tag is not currently published, so build and publish steps will continue."
-            }
-            else {
-              Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "Version $tag is new. Build and publish steps will continue."
-            }
+            Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "$marker has not been built before. Build and publish steps will continue as build $buildNumber."
           }
 
           $global:LASTEXITCODE = 0
@@ -194,7 +214,7 @@ jobs:
           $cacheDir = '.release-cache'
           New-Item -ItemType Directory -Force -Path $cacheDir | Out-Null
           try {
-            gh release download '${{ steps.source.outputs.release_tag }}' --repo '${{ github.repository }}' --pattern 'build-metadata.json' --dir $cacheDir --clobber
+            gh release download '${{ steps.release_check.outputs.existing_release_tag }}' --repo '${{ github.repository }}' --pattern 'build-metadata.json' --dir $cacheDir --clobber
           } catch {
             Write-Warning "Could not download existing build metadata: $_"
           }
@@ -211,6 +231,8 @@ jobs:
             'config/codex-only-local.json',
             '-MetadataOutputPath',
             'build-metadata.json',
+            '-BuildNumber',
+            '${{ steps.release_check.outputs.build_number }}',
             '-WorkRoot',
             # Use a short absolute path so Inno Setup can compress files with deeply-nested
             # node_modules paths. The staging path under the GitHub Actions workspace root
@@ -238,6 +260,8 @@ jobs:
           "release_name=$($metadata.releaseName)" >> $env:GITHUB_OUTPUT
           "artifact_dir=$($metadata.artifactDirectoryRelative)" >> $env:GITHUB_OUTPUT
           "version=$($metadata.version)" >> $env:GITHUB_OUTPUT
+          "app_version=$($metadata.appVersion)" >> $env:GITHUB_OUTPUT
+          "source_version=$($metadata.sourceVersion)" >> $env:GITHUB_OUTPUT
           "package_id=$($metadata.packageId)" >> $env:GITHUB_OUTPUT
           "generated_at=$($metadata.generatedAt)" >> $env:GITHUB_OUTPUT
           "source_mode=$($metadata.appSource.mode)" >> $env:GITHUB_OUTPUT
@@ -270,7 +294,9 @@ jobs:
         run: |
           $skipBuild = '${{ steps.release_check.outputs.skip_build }}' -eq 'true'
           $packageId = '${{ steps.source.outputs.package_id }}'
-          $version = '${{ steps.source.outputs.version }}'
+          $version = ''
+          $appVersion = ''
+          $sourceVersion = '${{ steps.source.outputs.version }}'
           $sourceMode = '${{ steps.source.outputs.source_mode }}'
           $generatedAt = ''
           $changelog = $null
@@ -278,6 +304,8 @@ jobs:
           if (-not $skipBuild) {
             $packageId = '${{ steps.build.outputs.package_id }}'
             $version = '${{ steps.build.outputs.version }}'
+            $appVersion = '${{ steps.build.outputs.app_version }}'
+            $sourceVersion = '${{ steps.build.outputs.source_version }}'
             $sourceMode = '${{ steps.build.outputs.source_mode }}'
             $generatedAt = '${{ steps.build.outputs.generated_at }}'
           }
@@ -285,13 +313,26 @@ jobs:
             $existingMetadata = Get-Content '.release-cache/build-metadata.json' -Raw | ConvertFrom-Json
             $packageId = $existingMetadata.packageId
             $version = $existingMetadata.version
+            $appVersion = $existingMetadata.appVersion
+            $sourceVersion = $existingMetadata.sourceVersion
             $sourceMode = $existingMetadata.appSource.mode
             $generatedAt = $existingMetadata.generatedAt
           }
 
           $lines = [System.Collections.Generic.List[string]]::new()
           $lines.Add("Source package: `` $packageId ``")
-          $lines.Add("Store version: `` $version ``")
+          # Three numbers, because there genuinely are three. The package
+          # version is what to publish to the fleet; the app version is what
+          # the About panel shows on the machine; the MSIX version identifies
+          # the store package this was repackaged from and appears nowhere on
+          # an installed machine.
+          if ($version) {
+            $lines.Add("Package version: `` $version ``")
+          }
+          if ($appVersion) {
+            $lines.Add("App-reported version: `` $appVersion ``")
+          }
+          $lines.Add("MSIX version: `` $sourceVersion ``")
           $lines.Add("Source mode: `` $sourceMode ``")
           if ($generatedAt) {
             $lines.Add("Built at: `` $generatedAt ``")
@@ -359,4 +400,4 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release edit '${{ steps.source.outputs.release_tag }}' --repo '${{ github.repository }}' --notes-file 'release-notes.md'
+          gh release edit '${{ steps.release_check.outputs.existing_release_tag }}' --repo '${{ github.repository }}' --notes-file 'release-notes.md'

@@ -4,7 +4,13 @@ param(
     [switch]$SkipInstaller,
     [switch]$RequireInstaller,
     [string]$MetadataOutputPath = '',
-    [string]$WorkRoot = ''
+    [string]$WorkRoot = '',
+    # Which repackaging of the same upstream Codex this is. Without it the
+    # version would be entirely upstream's, so re-running the build with fixed
+    # patches would produce a package indistinguishable from the old one --
+    # the fleet compares versions for equality and would skip the install.
+    # CI passes the next number; local builds leave it 0 and get no suffix.
+    [int]$BuildNumber = 0
 )
 
 Set-StrictMode -Version Latest
@@ -718,8 +724,48 @@ if ((Test-Path (Join-Path $sourceExportRoot 'app/ChatGPT.exe')) -and (Test-Path 
   $sourceMetadata = Get-Content -Path $sourceMetadataPath -Raw | ConvertFrom-Json
   $version = $sourceMetadata.version
 }
+# Up to here $version is the MSIX identity version, which is what the resolver
+# can know before anything is downloaded. It is the wrong thing to name a
+# release after: it describes a package format that no longer exists once this
+# bundle is installed by Inno Setup, and it is not the number the application
+# shows. A machine reporting "26.803.81509" was built from MSIX 26.803.10989.0,
+# and nobody can tell without a lookup table.
+#
+# So the source version is kept for provenance, and the package is named after
+# the version the application reports about itself.
+$sourceVersion = $version
+
+$appAsarPath = Join-Path $sourceExportRoot 'app/resources/app.asar'
+if (-not (Test-Path -LiteralPath $appAsarPath)) {
+    throw "app.asar was not found at $appAsarPath, so the application version cannot be read."
+}
+$appVersion = (& node (Join-Path $scriptRoot 'get-app-asar-version.mjs') --asar $appAsarPath)
+if ($LASTEXITCODE -ne 0 -or [string]::IsNullOrWhiteSpace($appVersion)) {
+    throw 'get-app-asar-version.mjs could not read the application version from app.asar.'
+}
+$appVersion = ([string]$appVersion).Trim()
+
+# Both numbers are advanced by the same upstream release train, so their first
+# two fields agree (26.803.10989.0 / 26.803.81509). If they ever diverge, the
+# field being read is not the one this is meant to be -- fail rather than
+# publish a release named after a number nobody recognises.
+$sourceTrain = (($sourceVersion -split '\.') | Select-Object -First 2) -join '.'
+$appTrain = (($appVersion -split '\.') | Select-Object -First 2) -join '.'
+if ($sourceTrain -ne $appTrain) {
+    throw ("The application reports version '$appVersion', which is not from the same release " +
+        "train as MSIX version '$sourceVersion' ($appTrain vs $sourceTrain). " +
+        'Confirm that app.asar/package.json still holds the displayed version before releasing.')
+}
+
+$version = if ($BuildNumber -gt 0) { '{0}-b{1}' -f $appVersion, $BuildNumber } else { $appVersion }
+Write-BuildTrace "Package version $version (app $appVersion, MSIX $sourceVersion)."
+
 $releaseBase = '{0}-{1}' -f $config.releaseNamePrefix, $version
 $releaseTag = 'offline-v{0}' -f $version
+# The MSIX version is carried in the release name so CI can answer "has this
+# upstream package already been built" by listing releases, without having to
+# download a metadata asset from each one.
+$releaseName = '{0} Offline {1} (MSIX {2})' -f $config.appName, $version, $sourceVersion
 $artifactRoot = Join-Path $outputRoot $releaseBase
 $packageRoot = Join-Path $stageRoot $releaseBase
 
@@ -996,6 +1042,9 @@ $buildInfo = [ordered]@{
     appName = $config.appName
     packageId = $config.packageId
     version = $version
+    appVersion = $appVersion
+    sourceVersion = $sourceVersion
+    buildNumber = $BuildNumber
     releaseTag = $releaseTag
     builtAt = (Get-Date).ToString('o')
     sourceMetadata = $sourceMetadata
@@ -1313,6 +1362,7 @@ if ($config.packaging.setupExe -and -not $SkipInstaller) {
             $rendered = $template
             $rendered = $rendered.Replace('__APP_NAME__', [string]$config.appName)
             $rendered = $rendered.Replace('__APP_VERSION__', [string]$version)
+            $rendered = $rendered.Replace('__VERSION_INFO_VERSION__', [string]$sourceVersion)
             $rendered = $rendered.Replace('__APP_DIR_NAME__', [string]$config.installDirName)
             $rendered = $rendered.Replace('__SOURCE_ROOT__', [string]$installerSourceRoot.Replace('/', '\\'))
             $rendered = $rendered.Replace('__INSTALLER_ROOT__', [string](Join-Path $repoRoot 'installer').Replace('/', '\\'))
@@ -1374,8 +1424,11 @@ $buildMetadata = [ordered]@{
     appName = $config.appName
     packageId = $config.packageId
     version = $version
+    appVersion = $appVersion
+    sourceVersion = $sourceVersion
+    buildNumber = $BuildNumber
     releaseTag = $releaseTag
-    releaseName = '{0} Offline {1}' -f $config.appName, $version
+    releaseName = $releaseName
     artifactDirectory = $artifactRoot
     artifactDirectoryRelative = Get-RelativePath -BasePath $repoRoot -PathValue $artifactRoot
     generatedAt = (Get-Date).ToString('o')
