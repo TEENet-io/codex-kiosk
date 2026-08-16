@@ -45,6 +45,48 @@ export function checkJavaScriptSyntax(filePath) {
     return { ok: false, detail: `File not found: ${filePath}` };
   }
 
+  const source = fs.readFileSync(filePath, 'utf8');
+
+  // Never let Node pick the goal symbol from the file extension.
+  //
+  // `node --check some.js` decides between script and module itself, and on
+  // these bundles it decides wrong and reports success: an app-initial asset
+  // corrupted by a bad patch -- an actual "Unexpected identifier" a parser
+  // finds immediately -- exited 0 when checked by path, and exited 1 the
+  // moment the same bytes were checked as a module. Every webview asset here
+  // is an ES module named .js, so checking by path silently checks nothing.
+  //
+  // The goal symbol is therefore always explicit. ESM syntax settles it when
+  // present; otherwise both are tried, since a plain script is valid too.
+  // Static import/export only. `import(...)` is deliberately excluded: dynamic
+  // import is legal in CommonJS too, so it says nothing about the goal symbol.
+  // Anchoring to line starts would miss these bundles, where a static import
+  // sits mid-line 820 chars in.
+  const looksLikeModule =
+    /(?:^|[;}\s])import\s*(?:[{*"']|[A-Za-z_$])/.test(source) ||
+    /(?:^|[;}\s])export\s*(?:[{*]|default\b|(?:const|let|var|function|class|async)\b)/.test(source);
+  const kinds = filePath.endsWith('.cjs')
+    ? ['commonjs']
+    : looksLikeModule
+      ? ['module']
+      : ['module', 'commonjs'];
+
+  let lastDetail = '';
+  for (const kind of kinds) {
+    const attempt = runCheck(source, kind);
+    if (attempt.ok) {
+      return { ok: true };
+    }
+    lastDetail = attempt.detail;
+  }
+
+  return {
+    ok: false,
+    detail: `${filePath}\n${lastDetail}`,
+  };
+}
+
+function runCheck(source, kind) {
   // Collect stderr through a file, not a pipe.
   //
   // Node writes to a piped stderr asynchronously and exits without flushing the
@@ -58,9 +100,11 @@ export function checkJavaScriptSyntax(filePath) {
   const capture = fs.openSync(capturePath, 'w');
   let result;
   try {
-    result = spawnSync(process.execPath, ['--check', filePath], {
-      stdio: ['ignore', capture, capture],
-    });
+    result = spawnSync(
+      process.execPath,
+      [`--input-type=${kind}`, '--check'],
+      { input: source, stdio: ['pipe', capture, capture] },
+    );
   } finally {
     fs.closeSync(capture);
   }
@@ -87,8 +131,8 @@ export function checkJavaScriptSyntax(filePath) {
     ok: false,
     detail:
       detail.length > 0
-        ? detail
-        : `node --check exited ${result.status} without a message short enough to show.`,
+        ? `checked as ${kind}:\n${detail}`
+        : `node --check exited ${result.status} as ${kind} without a message short enough to show.`,
   };
 }
 

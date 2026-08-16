@@ -1253,10 +1253,16 @@ function patchCodexOnlyLocalTasks(content) {
         listFetchRe,
         `$1!1${CLOUD_TASK_LIST_DISABLED_PATCH_MARKER}$2`,
       );
-      next =
-        next.slice(0, authFirst) +
-        listAuthReplacement +
-        next.slice(authFirst + listAuthNeedle.length);
+      // Splice by searching again, never by an offset measured earlier.
+      //
+      // The replacement above inserts the marker ahead of this needle, so every
+      // offset taken before it is now short by the marker's length -- 42
+      // characters, which is what a stale `authFirst` cut out of the memo
+      // bookkeeping instead: `t[3]=e?.limit,t[4]=e?.taskFilter,t[5]=o):o=t[5];`
+      // became `t[3]=elet s=!1,c;5];`. The build still passed, because the
+      // ChatGPT-auth line it was meant to disable survived untouched and the
+      // syntax check of the day could not see the damage.
+      next = next.replace(listAuthNeedle, () => listAuthReplacement);
       found.add(CLOUD_TASK_LIST_DISABLED_PATCH_MARKER);
     }
   }
@@ -4748,6 +4754,13 @@ try {
       }
       if (changed) {
         fs.writeFileSync(filePath, content, 'utf8');
+        // These rewrites splice into minified source by offset and by pattern,
+        // and a mistake there produces a file that still looks patched: an
+        // offset measured before an earlier insertion once cut 42 characters
+        // out of the memo bookkeeping here and left the surface it was meant
+        // to disable untouched. Parsing what was just written turns that into
+        // a failure beside the patch that caused it.
+        assertJavaScriptSyntax(filePath, `Webview asset ${path.basename(filePath)}`);
         patchedCount++;
       }
     }
