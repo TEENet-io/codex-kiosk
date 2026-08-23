@@ -1,0 +1,151 @@
+name: check-upstream-codex
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '15 3 * * *'
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: codex-upstream-canary
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install resolver dependencies
+        run: npm ci
+
+      - name: Install resolver browser
+        run: npx playwright install chromium-headless-shell
+
+      - name: Identify patcher revision
+        id: patcher
+        shell: bash
+        run: |
+          patcher_revision="$({ sha256sum scripts/patch-app-asar.mjs scripts/verify-offline-package.ps1 scripts/desktop-patches/*.cjs 2>/dev/null || true; } | sha256sum | cut -d ' ' -f 1)"
+          echo "patcher_revision=$patcher_revision" >> "$GITHUB_OUTPUT"
+
+      - name: Resolve current upstream version
+        id: source
+        shell: bash
+        run: |
+          package_family_name="$(jq -r '.upstreamCanary.packageFamilyName' config/codex-only-local.json)"
+          ring="$(jq -r '.upstreamCanary.ring // "Retail"' config/codex-only-local.json)"
+          set +e
+          node scripts/resolve-store-bundle-url.mjs \
+            --package-family-name "$package_family_name" \
+            --ring "$ring" \
+            --direct-attempts 4 \
+            --browser-attempts 2 \
+            > "$RUNNER_TEMP/codex-source.json" \
+            2> "$RUNNER_TEMP/codex-source-error.log"
+          status=$?
+          set -e
+
+          if [[ $status -ne 0 ]]; then
+            echo 'resolved=false' >> "$GITHUB_OUTPUT"
+            echo 'error<<CODEX_SOURCE_ERROR' >> "$GITHUB_OUTPUT"
+            tail -c 6000 "$RUNNER_TEMP/codex-source-error.log" >> "$GITHUB_OUTPUT"
+            echo >> "$GITHUB_OUTPUT"
+            echo 'CODEX_SOURCE_ERROR' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo 'resolved=true' >> "$GITHUB_OUTPUT"
+          echo "version=$(jq -r '.version' "$RUNNER_TEMP/codex-source.json")" >> "$GITHUB_OUTPUT"
+          echo "file_name=$(jq -r '.selected.fileName' "$RUNNER_TEMP/codex-source.json")" >> "$GITHUB_OUTPUT"
+          echo "sha1=$(jq -r '.selected.sha1 // ""' "$RUNNER_TEMP/codex-source.json")" >> "$GITHUB_OUTPUT"
+
+      - name: Report source resolver outage once
+        if: steps.source.outputs.resolved != 'true'
+        shell: bash
+        env:
+          PATCHER_REVISION: ${{ steps.patcher.outputs.patcher_revision }}
+          RESOLVER_ERROR: ${{ steps.source.outputs.error }}
+        run: |
+          title='[Codex source canary] resolver unavailable'
+          issue_number="$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --limit 100 --json number,title --jq ".[] | select(.title == \"$title\") | .number" | head -n 1)"
+          if [[ -z "$issue_number" ]]; then
+            body="The lightweight upstream check could not resolve the current Microsoft Store package after bounded retries.
+
+          Patcher revision: \`$PATCHER_REVISION\`
+          Workflow: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID
+
+          This does not trigger a full package build. A later successful canary will close this issue.
+
+          Resolver output:
+          \`\`\`
+          ${RESOLVER_ERROR:0:6000}
+          \`\`\`"
+            gh issue create --repo "$GITHUB_REPOSITORY" --title "$title" --body "$body"
+          fi
+
+      - name: Report unseen upstream version once
+        if: steps.source.outputs.resolved == 'true'
+        shell: bash
+        env:
+          UPSTREAM_VERSION: ${{ steps.source.outputs.version }}
+          UPSTREAM_FILE_NAME: ${{ steps.source.outputs.file_name }}
+          UPSTREAM_SHA1: ${{ steps.source.outputs.sha1 }}
+          PATCHER_REVISION: ${{ steps.patcher.outputs.patcher_revision }}
+        run: |
+          version="$UPSTREAM_VERSION"
+          patcher_revision="$PATCHER_REVISION"
+          version_train="$(printf '%s' "$version" | cut -d '.' -f 1-2)"
+          if [[ ! "$version_train" =~ ^[0-9]+\.[0-9]+$ ]]; then
+            echo "Could not derive an MSIX train from version: $version" >&2
+            exit 1
+          fi
+          release_pattern="\\(MSIX ${version_train//./\\.}\\.[0-9.]+\\)"
+          released="$(gh release list --repo "$GITHUB_REPOSITORY" --limit 1000 --json name --jq ".[] | select(.name | test(\"$release_pattern\")) | .name" | head -n 1)"
+
+          outage_title='[Codex source canary] resolver unavailable'
+          outage_number="$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --limit 100 --json number,title --jq ".[] | select(.title == \"$outage_title\") | .number" | head -n 1)"
+          if [[ -n "$outage_number" ]]; then
+            gh issue close "$outage_number" --repo "$GITHUB_REPOSITORY" --comment "Resolver recovered; current upstream MSIX is $version."
+          fi
+
+          if [[ -n "$released" ]]; then
+            title="[Codex compatibility] MSIX train $version_train"
+            issue_number="$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --limit 1000 --search "$title in:title" --json number,title --jq ".[] | select(.title == \"$title\") | .number" | head -n 1)"
+            if [[ -n "$issue_number" ]]; then
+              gh issue close "$issue_number" --repo "$GITHUB_REPOSITORY" --comment "A release for MSIX train $version_train now exists: $released"
+            fi
+            exit 0
+          fi
+
+          title="[Codex compatibility] MSIX train $version_train"
+          issue_number="$(gh issue list --repo "$GITHUB_REPOSITORY" --state all --limit 1000 --search "$title in:title" --json number,title --jq ".[] | select(.title == \"$title\") | .number" | head -n 1)"
+          if [[ -n "$issue_number" ]]; then
+            exit 0
+          fi
+
+          body="A Store version without a matching release was detected by the lightweight canary.
+
+          - MSIX version: \`$version\`
+          - MSIX train: \`$version_train\`
+          - File: \`$UPSTREAM_FILE_NAME\`
+          - Store SHA-1: \`$UPSTREAM_SHA1\`
+          - Patcher revision: \`$patcher_revision\`
+          - Manual build: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/workflows/build-offline-package.yml
+          - Canary run: $GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID
+
+          No package was downloaded or published. Archive the MSIX, record its SHA-256, adapt and test the patches, then manually run the full build."
+          gh issue create --repo "$GITHUB_REPOSITORY" --title "$title" --body "$body"

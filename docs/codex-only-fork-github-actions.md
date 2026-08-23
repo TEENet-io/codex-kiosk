@@ -23,7 +23,8 @@ ChatGPT、Work 和 Codex 共用同一个 Electron renderer，并不是不同的 
 | --- | --- |
 | `scripts/patch-app-asar.mjs` | 应用 Codex-only 静态补丁 |
 | `scripts/verify-offline-package.ps1` | 验证产物和补丁 |
-| `.github/workflows/build-offline-package.yml` | Windows 自动构建与发布 |
+| `.github/workflows/build-offline-package.yml` | Windows 手动构建与发布 |
+| `.github/workflows/check-upstream-codex.yml` | 每日轻量上游版本探测与去重 Issue |
 
 ## Codex-only 补丁
 
@@ -144,18 +145,22 @@ jobs:
     runs-on: windows-latest
 ```
 
-现有自动触发：
+工作流分成两层：
 
 ```yaml
+# 完整构建：仅手动
 on:
   workflow_dispatch:
+
+# 上游 canary：只解析元数据，不下载或打包 MSIX
+on:
   schedule:
     - cron: '15 3 * * *'
-  push:
-    branches: [main]
-  pull_request:
-    branches: [main]
 ```
+
+新上游发布批次先生成以 MSIX 版本前两段（例如 `26.818`）为键的 Issue。MSIX 归档并记录
+SHA-256、补丁适配及回归验证完成后，才手动触发完整构建。同一批次的小版本和重复的每日
+探测不会重复建单；patcher revision 只写入 Issue 内容用于追溯。
 
 发布顺序应保持：
 

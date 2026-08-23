@@ -151,23 +151,30 @@ pwsh -NoProfile -File .\scripts\verify-offline-package.ps1 `
 ```text
 .github/workflows/build-offline-package.yml
 .github/workflows/build-offline-package-monitor.yml
+.github/workflows/check-upstream-codex.yml
 ```
 
 主工作流支持：
 
-- push 到 `main`；
-- pull request 验证；
-- 每日定时检查上游版本；
 - `workflow_dispatch` 手动构建；
 - 自动创建或更新 GitHub Release；
-- 上传安装器、便携包、Web 包、技能包、校验文件和构建元数据。
+- 上传安装器、便携包、技能包、校验文件和构建元数据。
+
+`check-upstream-codex` 每日只解析 Store 元数据，不下载 MSIX、不修改 asar、不发布
+Release。发现新的 MSIX 发布批次（版本前两段，例如 `26.818`）时只创建一个去重 Issue；同一
+批次的小版本不重复建单。完整构建必须在
+MSIX 已归档、SHA-256 已记录、补丁适配和回归测试完成后手动触发。
+
+可重复发布时，把 `config/codex-only-local.json` 的 `appSource` 替换为
+`config/app-source.archive.example.json` 的结构，并填入真实的不可变 URL、MSIX 版本和
+SHA-256（示例中的全零值必须替换）。构建会同时核对下载哈希和 `AppxManifest.xml` 中的
+版本，任一不一致都会停止。
 
 首次 Fork 后：
 
 1. 在仓库 Settings → Actions → General 中允许 Actions 运行。
 2. 将 Workflow permissions 设置为 Read and write permissions。
 3. 打开 Actions → `build-offline-package` → Run workflow。
-4. PR 构建只验证，不发布 Release。
 
 完整构建使用 `windows-latest`。如果 GitHub 托管 runner 太慢，可以部署 Windows Server ECS，并给 self-hosted runner 添加标签，然后将工作流中的：
 
@@ -208,4 +215,3 @@ Remove-Item -LiteralPath C:\cb -Recurse -Force
 ```
 
 重新运行 `npm ci` 可以恢复 `node_modules`。
-

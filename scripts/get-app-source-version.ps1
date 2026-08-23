@@ -38,6 +38,35 @@ $config = Get-Content -Path $configFile -Raw | ConvertFrom-Json
 $mode = [string]$config.appSource.mode
 
 switch ($mode) {
+    'archive' {
+        $required = @{}
+        foreach ($name in @('url', 'version', 'sha256', 'packageFamilyName')) {
+            $property = $config.appSource.PSObject.Properties[$name]
+            if ($null -eq $property -or [string]::IsNullOrWhiteSpace([string]$property.Value)) {
+                throw "Archive app source is missing required property '$name'."
+            }
+            $required[$name] = [string]$property.Value
+        }
+        if ($required.sha256 -notmatch '^[0-9a-fA-F]{64}$') {
+            throw 'Archive app source sha256 must contain exactly 64 hexadecimal characters.'
+        }
+
+        $fileNameProperty = $config.appSource.PSObject.Properties['fileName']
+        $fileName = if ($null -eq $fileNameProperty) { '' } else { [string]$fileNameProperty.Value }
+        $version = $required.version
+        [ordered]@{
+            packageId = $config.packageId
+            sourceMode = $mode
+            version = $version
+            releaseMarker = 'MSIX {0}' -f $version
+            packageFamilyName = $required.packageFamilyName
+            selected = [ordered]@{
+                fileName = $fileName
+                href = $required.url
+                sha256 = $required.sha256.ToLowerInvariant()
+            }
+        } | ConvertTo-Json -Depth 8
+    }
     'rg_adguard' {
         $resolverArgs = @('--package-family-name', $config.appSource.packageFamilyName, '--ring', $config.appSource.ring)
         $pinnedProp = $config.appSource.PSObject.Properties['pinnedVersion']
@@ -78,4 +107,3 @@ switch ($mode) {
         throw "Unsupported app source mode: $mode"
     }
 }
-

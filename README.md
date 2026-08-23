@@ -69,6 +69,10 @@ dist/codex-only-local/<版本>/
 
 完整的环境安装、短路径构建、验证和 GitHub Actions 使用方法见 [BUILDING.md](BUILDING.md)。
 
+生产发布应把 `appSource` 切换为 `archive`，使用已归档的 MSIX URL、明确版本和
+SHA-256；`config/app-source.archive.example.json` 是可复制的配置片段。默认的
+`rg_adguard` 模式适合发现和首次获取上游包，不适合作为可重复发布的长期输入。
+
 ## 安装包行为
 
 - 安装后的桌面和开始菜单快捷方式调用 `wscript.exe + Codex.vbs`。
@@ -103,8 +107,9 @@ pwsh -NoProfile -File .\scripts\verify-offline-package.ps1 `
 - 补丁与上游 bundle 结构绑定；上游前端改动后，构建会主动失败并要求重新适配。
   **Codex 每发布一个新版本，都可能需要一次补丁适配**，适配方法见
   [版本适配与维护](docs/版本适配与维护.md)。
-- 构建取的是 Store 上的**当前最新版**，而灰度期间同一查询会随机返回不同版本，
-  因此同一个 commit 重跑 CI 可能结果不同。当前已同时适配 26.803.10989.0 与 26.810.4967.0。
+- `rg_adguard` 模式取 Store 的**当前最新版**，灰度期间同一查询可能返回不同版本；
+  正式构建应改用带 SHA-256 的 `archive` 源。每日工作流只探测新版本并创建去重 Issue，
+  不再自动下载、打补丁或发布完整安装包。
 - CI 全绿只代表**补丁已正确应用**，不代表 ChatGPT 入口确实消失或 Computer Use 确实可用；
   这两点必须在 Windows 真机上人工验收。
 - 重新打包后的程序不保留 Microsoft Store 原包签名。

@@ -1,5 +1,8 @@
 import process from 'node:process';
-import { chromium } from 'playwright';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+const DEFAULT_RETRY_DELAYS_MS = [5000, 15000, 30000, 60000];
 
 function parseArgs(argv) {
   const args = {};
@@ -45,7 +48,7 @@ function textFromHtml(value) {
   return decodeHtml(value.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim());
 }
 
-function parseLinksFromHtml(html, { filePattern, packageName }) {
+export function parseLinksFromHtml(html, { filePattern, packageName }) {
   const links = [];
   const rowPattern = /<tr\b[^>]*>([\s\S]*?)<\/tr>/gi;
   let rowMatch;
@@ -142,39 +145,99 @@ function scoreCandidate(fileName) {
   return score;
 }
 
-async function main() {
-  const args = parseArgs(process.argv.slice(2));
-  const packageFamilyName = args['package-family-name'] || process.env.CODEX_PACKAGE_FAMILY_NAME;
-  const ring = args.ring || process.env.CODEX_STORE_RING || 'Retail';
-  const filePattern = new RegExp(args['file-pattern'] || '\\.(msix|appx|msixbundle|appxbundle)$', 'i');
-  const timeoutMs = Number.parseInt(args.timeout || process.env.CODEX_STORE_RESOLVER_TIMEOUT || '120000', 10);
+function retryDelay(retryDelaysMs, attemptIndex) {
+  if (retryDelaysMs.length === 0) return 0;
+  return retryDelaysMs[Math.min(attemptIndex, retryDelaysMs.length - 1)];
+}
 
-  if (!packageFamilyName) {
-    throw new Error('Missing --package-family-name');
-  }
+function delay(ms) {
+  return ms > 0 ? new Promise(resolve => setTimeout(resolve, ms)) : Promise.resolve();
+}
 
+function positiveInteger(value, fallback) {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+}
+
+function nonNegativeInteger(value, fallback) {
+  const parsed = Number.parseInt(value, 10);
+  return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;
+}
+
+function parseRetryDelays(value) {
+  if (!value) return DEFAULT_RETRY_DELAYS_MS;
+  const parsed = String(value)
+    .split(',')
+    .map(entry => Number.parseInt(entry.trim(), 10))
+    .filter(entry => Number.isFinite(entry) && entry >= 0);
+  return parsed.length > 0 ? parsed : DEFAULT_RETRY_DELAYS_MS;
+}
+
+export async function resolveStoreBundle({
+  packageFamilyName,
+  ring = 'Retail',
+  filePattern = /\.(msix|appx|msixbundle|appxbundle)$/i,
+  timeoutMs = 120000,
+  pinnedVersion = '',
+  directAttempts = 4,
+  browserAttempts = 2,
+  retryDelaysMs = DEFAULT_RETRY_DELAYS_MS,
+  postApi = postRgAdguardApi,
+  browserResolver = resolveWithBrowser,
+  sleep = delay,
+  logger = message => console.error(message),
+} = {}) {
+  if (!packageFamilyName) throw new Error('Missing --package-family-name');
   const packageName = packageFamilyName.split('_')[0];
   let links = [];
-  let apiError = null;
+  let lastError = null;
 
-  try {
-    const html = await postRgAdguardApi({ packageFamilyName, ring, timeoutMs });
-    links = parseLinksFromHtml(html, { filePattern, packageName });
-  }
-  catch (error) {
-    apiError = error;
-  }
-
-  if (links.length === 0) {
-    if (apiError) {
-      console.error(`Direct rg-adguard API lookup failed; falling back to browser flow: ${apiError.message}`);
+  for (let attempt = 1; attempt <= directAttempts && links.length === 0; attempt += 1) {
+    try {
+      const html = await postApi({ packageFamilyName, ring, timeoutMs });
+      links = parseLinksFromHtml(html, { filePattern, packageName });
+      if (links.length === 0) {
+        lastError = new Error('rg-adguard API returned no matching package links');
+      }
+    } catch (error) {
+      lastError = error;
     }
 
-    links = await resolveWithBrowser({ packageFamilyName, ring, filePattern, packageName, timeoutMs });
+    if (links.length === 0) {
+      logger(
+        `Direct rg-adguard lookup attempt ${attempt}/${directAttempts} failed: ` +
+        `${lastError instanceof Error ? lastError.message : String(lastError)}`,
+      );
+      if (attempt < directAttempts) {
+        await sleep(retryDelay(retryDelaysMs, attempt - 1));
+      }
+    }
+  }
+
+  for (let attempt = 1; attempt <= browserAttempts && links.length === 0; attempt += 1) {
+    try {
+      links = await browserResolver({ packageFamilyName, ring, filePattern, packageName, timeoutMs });
+      if (links.length === 0) {
+        lastError = new Error('rg-adguard browser flow returned no matching package links');
+      }
+    } catch (error) {
+      lastError = error;
+    }
+
+    if (links.length === 0) {
+      logger(
+        `Browser rg-adguard lookup attempt ${attempt}/${browserAttempts} failed: ` +
+        `${lastError instanceof Error ? lastError.message : String(lastError)}`,
+      );
+      if (attempt < browserAttempts) {
+        await sleep(retryDelay(retryDelaysMs, directAttempts + attempt - 2));
+      }
+    }
   }
 
   if (links.length === 0) {
-    throw new Error(`Resolver returned no matching files for ${packageFamilyName}.`);
+    const detail = lastError instanceof Error ? ` Last error: ${lastError.message}` : '';
+    throw new Error(`Resolver returned no matching files for ${packageFamilyName}.${detail}`);
   }
 
   const ranked = links
@@ -183,7 +246,7 @@ async function main() {
 
   // Pin a specific store version (--version / CODEX_PIN_VERSION) instead of the
   // latest, so a known-good bundle the patches match is used deterministically.
-  const pinnedVersion = (args.version || process.env.CODEX_PIN_VERSION || '').trim();
+  pinnedVersion = String(pinnedVersion).trim();
   let selected;
   if (pinnedVersion) {
     selected = ranked.find((entry) => {
@@ -203,19 +266,56 @@ async function main() {
     selected = ranked[0];
   }
   const versionMatch = selected.fileName.match(/_(\d+(?:\.\d+)+)_/);
+  if (!versionMatch) {
+    throw new Error(`Could not parse a package version from selected file ${selected.fileName}.`);
+  }
 
-  process.stdout.write(`${JSON.stringify({
+  return {
     packageFamilyName,
     packageName,
     ring,
     resolvedAt: new Date().toISOString(),
     selected,
     candidates: ranked,
-    version: versionMatch ? versionMatch[1] : null,
-  }, null, 2)}\n`);
+    version: versionMatch[1],
+  };
 }
 
-async function resolveWithBrowser({ packageFamilyName, ring, filePattern, packageName, timeoutMs }) {
+async function main() {
+  const args = parseArgs(process.argv.slice(2));
+  const packageFamilyName = args['package-family-name'] || process.env.CODEX_PACKAGE_FAMILY_NAME;
+  const ring = args.ring || process.env.CODEX_STORE_RING || 'Retail';
+  const filePattern = new RegExp(args['file-pattern'] || '\\.(msix|appx|msixbundle|appxbundle)$', 'i');
+  const timeoutMs = Number.parseInt(args.timeout || process.env.CODEX_STORE_RESOLVER_TIMEOUT || '120000', 10);
+  const directAttempts = positiveInteger(
+    args['direct-attempts'] || process.env.CODEX_STORE_DIRECT_ATTEMPTS,
+    4,
+  );
+  const browserAttempts = args['no-browser-fallback'] === 'true'
+    ? 0
+    : nonNegativeInteger(
+        args['browser-attempts'] || process.env.CODEX_STORE_BROWSER_ATTEMPTS,
+        2,
+      );
+  const retryDelaysMs = parseRetryDelays(
+    args['retry-delays-ms'] || process.env.CODEX_STORE_RETRY_DELAYS_MS,
+  );
+  const result = await resolveStoreBundle({
+    packageFamilyName,
+    ring,
+    filePattern,
+    timeoutMs,
+    pinnedVersion: args.version || process.env.CODEX_PIN_VERSION || '',
+    directAttempts,
+    browserAttempts,
+    retryDelaysMs,
+  });
+
+  process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
+}
+
+export async function resolveWithBrowser({ packageFamilyName, ring, filePattern, packageName, timeoutMs }) {
+  const { chromium } = await import('playwright');
   const browser = await chromium.launch({ headless: true });
 
   try {
@@ -274,8 +374,10 @@ async function resolveWithBrowser({ packageFamilyName, ring, filePattern, packag
   }
 }
 
-main().catch((error) => {
-  console.error(error instanceof Error ? error.stack || error.message : String(error));
-  process.exit(1);
-});
-
+const invokedPath = process.argv[1] ? path.resolve(process.argv[1]) : '';
+if (invokedPath === fileURLToPath(import.meta.url)) {
+  main().catch((error) => {
+    console.error(error instanceof Error ? error.stack || error.message : String(error));
+    process.exit(1);
+  });
+}

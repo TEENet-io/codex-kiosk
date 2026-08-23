@@ -289,6 +289,43 @@ function Export-AppSource {
     $mode = [string]$Config.appSource.mode
 
     switch ($mode) {
+        'archive' {
+            $source = $Config.appSource
+            $url = [string](Get-RequiredProperty -Object $source -Name 'url' -Context 'config.appSource')
+            $version = [string](Get-RequiredProperty -Object $source -Name 'version' -Context 'config.appSource')
+            $sha256 = [string](Get-RequiredProperty -Object $source -Name 'sha256' -Context 'config.appSource')
+            $packageFamilyName = [string](Get-RequiredProperty -Object $source -Name 'packageFamilyName' -Context 'config.appSource')
+            $fileName = [string](Get-OptionalProperty -Object $source -Name 'fileName')
+            if ($sha256 -notmatch '^[0-9a-fA-F]{64}$') {
+                throw 'Archive app source sha256 must contain exactly 64 hexadecimal characters.'
+            }
+
+            & (Join-Path $ScriptRoot 'import-store-bundle-from-url.ps1') `
+                -BundleUrl $url `
+                -DownloadedFileName $fileName `
+                -ExpectedSha256 $sha256 `
+                -Destination $SourceExportRoot `
+                -PackageFamilyName $packageFamilyName `
+                -SourceMode $mode | Out-Null
+
+            $metadataPath = Join-Path $SourceExportRoot 'metadata/package-metadata.json'
+            $metadata = Get-Content -LiteralPath $metadataPath -Raw | ConvertFrom-Json
+            if ([string]$metadata.version -ne $version) {
+                throw "Archived package version mismatch. Config declares $version but AppxManifest reports $($metadata.version)."
+            }
+
+            return [ordered]@{
+                mode = $mode
+                resolver = 'immutable-archive'
+                packageFamilyName = $packageFamilyName
+                selected = [ordered]@{
+                    fileName = $fileName
+                    href = $url
+                    sha256 = $sha256.ToLowerInvariant()
+                }
+                version = $version
+            }
+        }
         'installed_store' {
             & (Join-Path $ScriptRoot 'export-installed-store-app.ps1') -PackageId $Config.packageId -Destination $SourceExportRoot | Out-Null
             return [ordered]@{
@@ -313,7 +350,8 @@ function Export-AppSource {
                 -DownloadedFileName $resolved.selected.fileName `
                 -ExpectedSha1 $resolved.selected.sha1 `
                 -Destination $SourceExportRoot `
-                -PackageFamilyName $Config.appSource.packageFamilyName | Out-Null
+                -PackageFamilyName $Config.appSource.packageFamilyName `
+                -SourceMode $mode | Out-Null
 
             return [ordered]@{
                 mode = $mode

@@ -8,6 +8,10 @@
     "packageFamilyName": "OpenAI.Codex_2p2nqsd0c76g0",
     "ring": "Retail"
   },
+  "upstreamCanary": {
+    "packageFamilyName": "OpenAI.Codex_2p2nqsd0c76g0",
+    "ring": "Retail"
+  },
   "skills": {
     "sources": ["build/work/skills-official"],
     "defaultInstallProfile": "offline",

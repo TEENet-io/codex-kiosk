@@ -4,7 +4,11 @@ param(
     [string]$Destination = 'build/source-app',
     [string]$PackageFamilyName = 'OpenAI.Codex_2p2nqsd0c76g0',
     [string]$DownloadedFileName = '',
-    [string]$ExpectedSha1 = ''
+    [string]$ExpectedSha1 = '',
+    [string]$ExpectedSha256 = '',
+    [string]$SourceMode = 'rg_adguard',
+    [ValidateRange(1, 10)][int]$DownloadAttempts = 4,
+    [int[]]$DownloadRetryDelaysSeconds = @(10, 30, 60)
 )
 
 Set-StrictMode -Version Latest
@@ -80,6 +84,39 @@ function Get-PackageScore {
     return $score
 }
 
+function Invoke-DownloadWithRetry {
+    param(
+        [Parameter(Mandatory = $true)][string]$Uri,
+        [Parameter(Mandatory = $true)][string]$OutFile,
+        [Parameter(Mandatory = $true)][int]$Attempts,
+        [int[]]$RetryDelaysSeconds = @()
+    )
+
+    for ($attempt = 1; $attempt -le $Attempts; $attempt += 1) {
+        try {
+            Remove-Item -LiteralPath $OutFile -Force -ErrorAction SilentlyContinue
+            Invoke-WebRequest -Uri $Uri -OutFile $OutFile
+            if (-not (Test-Path -LiteralPath $OutFile -PathType Leaf) -or (Get-Item -LiteralPath $OutFile).Length -eq 0) {
+                throw 'The download completed without producing a non-empty file.'
+            }
+            return
+        }
+        catch {
+            Remove-Item -LiteralPath $OutFile -Force -ErrorAction SilentlyContinue
+            if ($attempt -ge $Attempts) {
+                throw "Failed to download package after $Attempts attempts: $($_.Exception.Message)"
+            }
+
+            $delayIndex = [Math]::Min($attempt - 1, [Math]::Max(0, $RetryDelaysSeconds.Count - 1))
+            $delaySeconds = if ($RetryDelaysSeconds.Count -eq 0) { 0 } else { [Math]::Max(0, $RetryDelaysSeconds[$delayIndex]) }
+            Write-Warning "Package download attempt $attempt/$Attempts failed: $($_.Exception.Message). Retrying in $delaySeconds seconds."
+            if ($delaySeconds -gt 0) {
+                Start-Sleep -Seconds $delaySeconds
+            }
+        }
+    }
+}
+
 $destinationRoot = Resolve-AbsolutePath -PathValue $Destination
 $tempRoot = Join-Path ([System.IO.Path]::GetTempPath()) ('codex-offline-' + [guid]::NewGuid().ToString('N'))
 $downloadRoot = Join-Path $tempRoot 'download'
@@ -110,13 +147,27 @@ try {
         Copy-Item -LiteralPath $BundleUrl -Destination $downloadPath -Force
     }
     else {
-        Invoke-WebRequest -Uri $BundleUrl -OutFile $downloadPath
+        Invoke-DownloadWithRetry `
+            -Uri $BundleUrl `
+            -OutFile $downloadPath `
+            -Attempts $DownloadAttempts `
+            -RetryDelaysSeconds $DownloadRetryDelaysSeconds
     }
 
     if (-not [string]::IsNullOrWhiteSpace($ExpectedSha1)) {
         $actualSha1 = (Get-FileHash -Path $downloadPath -Algorithm SHA1).Hash.ToLowerInvariant()
         if ($actualSha1 -ne $ExpectedSha1.ToLowerInvariant()) {
             throw "Downloaded package SHA1 mismatch. Expected $ExpectedSha1 but got $actualSha1"
+        }
+    }
+
+    if (-not [string]::IsNullOrWhiteSpace($ExpectedSha256)) {
+        if ($ExpectedSha256 -notmatch '^[0-9a-fA-F]{64}$') {
+            throw 'ExpectedSha256 must contain exactly 64 hexadecimal characters.'
+        }
+        $actualSha256 = (Get-FileHash -Path $downloadPath -Algorithm SHA256).Hash.ToLowerInvariant()
+        if ($actualSha256 -ne $ExpectedSha256.ToLowerInvariant()) {
+            throw "Downloaded package SHA256 mismatch. Expected $ExpectedSha256 but got $actualSha256"
         }
     }
 
@@ -171,10 +222,11 @@ try {
         exportedAt = (Get-Date).ToString('o')
         exportedAppPath = 'app'
         manifestPath = 'metadata/AppxManifest.xml'
-        sourceMode = 'rg_adguard'
+        sourceMode = $SourceMode
         sourceBundleUrl = $BundleUrl
         sourceFileName = $downloadName
         sourceSha1 = if ([string]::IsNullOrWhiteSpace($ExpectedSha1)) { $null } else { $ExpectedSha1.ToLowerInvariant() }
+        sourceSha256 = if ([string]::IsNullOrWhiteSpace($ExpectedSha256)) { $null } else { $ExpectedSha256.ToLowerInvariant() }
     }
 
     $metadata | ConvertTo-Json -Depth 6 | Set-Content -Path (Join-Path $metadataPath 'package-metadata.json') -Encoding UTF8

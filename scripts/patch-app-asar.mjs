@@ -1524,8 +1524,15 @@ function patchChromeBrowserClient(filePath) {
       /var ([A-Za-z_$][\w$]*)=([A-Za-z_$][\w$]*)=>\2==="win32"\?"[^"]*codex-browser-use":"\/tmp\/codex-browser-use"/,
     );
     if (!helperNeedleMatch || !unavailableMessageMatch || !platformImportMatch || !pipePrefixMatch) {
+      const missingSymbols = [
+        ['native-pipe bridge getter', helperNeedleMatch],
+        ['unavailable-message helper', unavailableMessageMatch],
+        ['node:os platform import', platformImportMatch],
+        ['platform pipe-prefix helper', pipePrefixMatch],
+      ].filter(([, match]) => !match).map(([name]) => name);
       throw new Error(
-        'Could not locate Chrome browser-client native pipe symbols to add Windows fallback.',
+        'Could not locate Chrome browser-client native pipe symbols to add Windows fallback. ' +
+        `Missing: ${missingSymbols.join(', ')}.`,
       );
     }
 

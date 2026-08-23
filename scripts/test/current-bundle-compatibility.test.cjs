@@ -168,6 +168,25 @@ test("26.803 Chrome native pipe patch accepts additional node:os imports", () =>
   assert.equal(result.pipePrefixMatch?.[1], "ys");
 });
 
+test("Chrome native pipe symbol drift reports the exact missing anchors", () => {
+  const diagnosticSource = sourceSlice(
+    "      const missingSymbols = [",
+    "\n      throw new Error(",
+  );
+  const listMissingSymbols = Function(
+    "helperNeedleMatch",
+    "unavailableMessageMatch",
+    "platformImportMatch",
+    "pipePrefixMatch",
+    `"use strict";\n${diagnosticSource}\nreturn missingSymbols;`,
+  );
+
+  assert.deepEqual(
+    listMissingSymbols({}, null, {}, null),
+    ["unavailable-message helper", "platform pipe-prefix helper"],
+  );
+});
+
 test("26.803 Chrome pipe filter accepts platform-aware listing functions", () => {
   const matchSource = sourceSlice(
     "    const legacyPipeListMatch =",
@@ -641,4 +660,3 @@ test("26.730 verifier rejects a UTF-8 BOM in the bundled marketplace manifest", 
     /\$bytes = \[System\.IO\.File\]::ReadAllBytes\(\$Path\)[\s\S]*\$bytes\[0\] -eq 0xEF[\s\S]*\$bytes\[1\] -eq 0xBB[\s\S]*\$bytes\[2\] -eq 0xBF/,
   );
 });
-

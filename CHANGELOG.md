@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+### 中文
+
+- 将每日上游探测与完整 Windows 打包拆开：每日 canary 只解析 Store 元数据，并按 MSIX
+  发布批次（版本前两段）创建去重 Issue；同一批次的小版本不重复建单，完整打包改为仅手动触发。
+- 新增不可变 `archive` 应用源，构建强制核对归档 MSIX 的 SHA-256 与清单版本。
+- Store 解析和 MSIX HTTP 下载增加有限次数的退避重试，降低空列表与临时 504 导致的误报。
+- Chrome native-pipe 结构漂移错误现在列出具体缺失锚点，便于拿到新版 bundle 后定向适配。
+- 新增源稳定性回归测试；尚未宣称适配未取得原始 bundle 的 Codex 26.818 系列。
+
+### Verification
+
+- `node --test scripts/test/source-resilience.test.cjs`
+
 ## 2026-08-14
 
 ### 中文

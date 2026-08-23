@@ -13,14 +13,9 @@ on:
         required: false
         default: false
         type: boolean
-  # A full run downloads a ~700 MB MSIX, repacks the asar and compresses the
-  # installer, so it is far too heavy to fire on every push to main. Builds are
-  # started by hand from the Actions tab (or `gh workflow run`); the nightly
-  # schedule stays on as the drift probe - it self-skips while the Store version
-  # is unchanged and already released, and only builds when a new Codex ships,
-  # which is exactly when the patches need checking.
-  schedule:
-    - cron: '15 3 * * *'
+  # Full packaging downloads a large MSIX and must only run against an input we
+  # intentionally selected. The lightweight scheduled compatibility check lives
+  # in check-upstream-codex.yml.
 
 permissions:
   contents: write
@@ -70,12 +65,15 @@ jobs:
           }
 
           node --check './scripts/patch-app-asar.mjs'
+          node --check './scripts/resolve-store-bundle-url.mjs'
           node --check './scripts/offline-direct-launch-smoke.mjs'
           node --check './scripts/extract-webview-from-asar.mjs'
           node --check './scripts/build-api-model-catalog.mjs'
           node --check './web-gateway/start-web.mjs'
           node --test './scripts/test/*.test.cjs'
           Test-PowerShellSyntax './scripts/build-offline-package.ps1'
+          Test-PowerShellSyntax './scripts/get-app-source-version.ps1'
+          Test-PowerShellSyntax './scripts/import-store-bundle-from-url.ps1'
           Test-PowerShellSyntax './scripts/verify-offline-package.ps1'
 
       - name: Install resolver dependencies
