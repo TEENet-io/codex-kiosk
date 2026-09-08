@@ -90,7 +90,7 @@ fs.writeFileSync(path.join(output, 'enterprise-build.json'), JSON.stringify(mani
 const assets = [];
 if (!values['skip-zip']) {
   const zipOutput = portable + '-portable.zip';
-  if (process.platform === 'win32') execFileSync('7z', ['a', '-tzip', '-mx=5', zipOutput, path.basename(portable)], { cwd: output, stdio: 'inherit' });
+  if (process.platform === 'win32') execFileSync('7z', ['a', '-tzip', '-mx=1', zipOutput, path.basename(portable)], { cwd: output, stdio: 'inherit' });
   else execFileSync('zip', ['-q', '-r', '-5', zipOutput, path.basename(portable)], { cwd: output, stdio: 'inherit' });
   assets.push(zipOutput);
 }
