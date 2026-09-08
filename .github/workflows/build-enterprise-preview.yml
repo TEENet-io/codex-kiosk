@@ -52,6 +52,7 @@ jobs:
             exit $buildExit
           }
       - name: Desktop preview smoke and screenshots
+        timeout-minutes: 7
         shell: pwsh
         run: |
           $config = Get-Content config/enterprise-preview.json -Raw | ConvertFrom-Json

@@ -46,6 +46,12 @@ let spawnError;
 child.on('error', error => { spawnError = error; });
 const result = { pass: false, version: JSON.parse(fs.readFileSync(path.join(root, 'enterprise-build.json'))).version, screenshots: [], checks: installed ? ['silent installer completed and preserved managed configuration'] : [] };
 let browser;
+async function deadline(promise, label, timeout = 15000) {
+  let timer;
+  try {
+    return await Promise.race([promise, new Promise((_, reject) => { timer = setTimeout(() => reject(new Error(label + ' did not respond within ' + timeout + 'ms')), timeout); })]);
+  } finally { clearTimeout(timer); }
+}
 try {
   let ready = false;
   for (let attempt = 0; attempt < 90; attempt++) {
@@ -65,13 +71,14 @@ try {
   }
   assert.ok(page, 'main application page');
   result.pageUrl = page.url();
-  await page.bringToFront();
-  const cdp = await context.newCDPSession(page);
+  await deadline(page.bringToFront(), 'Bring primary window to front');
+  const cdp = await deadline(context.newCDPSession(page), 'Attach primary CDP session');
+  const send = (method, params) => deadline(cdp.send(method, params), method);
   const errors = [];
   cdp.on('Runtime.exceptionThrown', event => errors.push(event.exceptionDetails.exception?.description || event.exceptionDetails.text));
-  await cdp.send('Runtime.enable');
+  await send('Runtime.enable');
   const evaluate = async (fn, arg) => {
-    const response = await cdp.send('Runtime.evaluate', { expression: '(' + fn.toString() + ')(' + JSON.stringify(arg ?? null) + ')', returnByValue: true, awaitPromise: true, timeout: 10000 });
+    const response = await send('Runtime.evaluate', { expression: '(' + fn.toString() + ')(' + JSON.stringify(arg ?? null) + ')', returnByValue: true, awaitPromise: true, timeout: 10000 });
     if (response.exceptionDetails) throw new Error(response.exceptionDetails.exception?.description || response.exceptionDetails.text);
     return response.result.value;
   };
@@ -142,7 +149,7 @@ try {
   result.desktopLogTail = fs.readFileSync(path.join(output, 'desktop.log'), 'utf8').slice(-12000);
   process.exitCode = 1;
 } finally {
-  if (browser) await browser.close().catch(() => {});
+  if (browser) await deadline(browser.close(), 'Close debugger connection', 5000).catch(() => {});
   if (child.pid) spawnSync('taskkill', ['/PID', String(child.pid), '/T', '/F'], { stdio: 'ignore' });
   fs.closeSync(log);
   fs.writeFileSync(path.join(output, 'smoke-result.json'), JSON.stringify(result, null, 2) + '\n');
