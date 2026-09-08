@@ -7,7 +7,6 @@ import assert from 'node:assert/strict';
 import { spawn, spawnSync, execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { setTimeout as delay } from 'node:timers/promises';
-import { chromium } from 'playwright';
 const require = createRequire(import.meta.url);
 const asar = require('@electron/asar');
 
@@ -86,22 +85,47 @@ try {
     await delay(1000);
   }
   assert.ok(ready, 'desktop debugging endpoint');
-  browser = await chromium.connectOverCDP('http://127.0.0.1:' + port);
-  const context = browser.contexts()[0];
-  let page;
+  let target;
   for (let attempt = 0; attempt < 45; attempt++) {
-    page = context.pages().find(p => p.url().startsWith('app://-/') && !/avatar|pip|composition/.test(p.url()));
-    if (page) break;
+    const targets = await (await fetch('http://127.0.0.1:' + port + '/json/list')).json();
+    target = targets.find(item => item.type === 'page' && item.url.startsWith('app://-/') && !/avatar|pip|composition/.test(item.url));
+    if (target) break;
     await delay(1000);
   }
-  assert.ok(page, 'main application page');
-  result.pageUrl = page.url();
-  await deadline(page.bringToFront(), 'Bring primary window to front');
-  const cdp = await deadline(context.newCDPSession(page), 'Attach primary CDP session');
+  assert.ok(target, 'main application page');
+  result.pageUrl = target.url;
+  const socket = new WebSocket(target.webSocketDebuggerUrl);
+  const pending = new Map(), handlers = new Map();
+  let nextId = 0;
+  socket.addEventListener('message', event => {
+    const message = JSON.parse(event.data);
+    if (message.id != null) {
+      const request = pending.get(message.id);
+      if (!request) return;
+      pending.delete(message.id);
+      message.error ? request.reject(new Error(JSON.stringify(message.error))) : request.resolve(message.result);
+    } else handlers.get(message.method)?.(message.params);
+  });
+  socket.addEventListener('close', () => {
+    for (const request of pending.values()) request.reject(new Error('Window debugging connection closed'));
+    pending.clear();
+  });
+  await deadline(new Promise((resolve, reject) => { socket.addEventListener('open', resolve, { once: true }); socket.addEventListener('error', reject, { once: true }); }), 'Connect to primary window debugger');
+  browser = { close: async () => { socket.close(); } };
+  const cdp = {
+    on: (name, handler) => handlers.set(name, handler),
+    send: (method, params = {}) => new Promise((resolve, reject) => {
+      const id = ++nextId;
+      pending.set(id, { resolve, reject });
+      socket.send(JSON.stringify({ id, method, params }));
+    }),
+  };
   const send = (method, params) => deadline(cdp.send(method, params), method);
   const errors = [];
   cdp.on('Runtime.exceptionThrown', event => errors.push(event.exceptionDetails.exception?.description || event.exceptionDetails.text));
   await send('Runtime.enable');
+  await send('Runtime.runIfWaitingForDebugger');
+  await send('Page.bringToFront');
   const evaluate = async (fn, arg) => {
     const response = await send('Runtime.evaluate', { expression: '(' + fn.toString() + ')(' + JSON.stringify(arg ?? null) + ')', returnByValue: true, awaitPromise: true, timeout: 10000 });
     if (response.exceptionDetails) throw new Error(response.exceptionDetails.exception?.description || response.exceptionDetails.text);
