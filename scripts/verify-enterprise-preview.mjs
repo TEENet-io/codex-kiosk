@@ -25,6 +25,7 @@ for (const dir of ['_internal/patches', '_internal/app/patches']) {
   assert.ok(init.includes('applyFeaturePolicy(FORCED_DESKTOP_FEATURE_STATE)'));
 }
 assert.ok(read('.vite/build/early-bootstrap.js').includes('require("../../teenet/runtime.cjs")'));
+assert.ok(read('teenet/toml/package.json').includes('"name": "smol-toml"'));
 const main = read('.vite/build/main-C8eoOzMw.js');
 assert.ok(main.includes('_teenetPolicy.requestDenial(t.request)'));
 assert.ok(main.includes('_teenetPolicy.messageDenial(t)'));

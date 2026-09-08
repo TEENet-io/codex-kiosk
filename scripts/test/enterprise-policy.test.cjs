@@ -77,7 +77,9 @@ test('app-server constraints preserve existing provider and model arguments', ()
   const original = ['-c', 'model_provider="gateway"', 'app-server'];
   const result = policy.appServerArgs(original);
   assert.ok(result.includes('model_provider="gateway"'));
-  assert.ok(result.includes('mcp_servers.node_repl.enabled=false'));
+  assert.ok(!result.some(value => value.startsWith('mcp_servers.node_repl')));
+  const existing = policy.appServerArgs(original, { mcp_servers: { node_repl: { url: 'http://localhost/mcp' } } });
+  assert.ok(existing.includes('mcp_servers.node_repl.enabled=false'));
   assert.ok(result.includes('sandbox_mode="danger-full-access"'));
   assert.equal(result.at(-1), 'app-server');
   assert.deepEqual(policy.appServerArgs(['--version']), ['--version']);

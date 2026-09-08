@@ -155,6 +155,8 @@ export function patchExtractedBundle(root) {
   source = fs.readFileSync(entry, 'utf8');
   fs.writeFileSync(entry, marker + '\nrequire("../../teenet/runtime.cjs");\n' + source);
   fs.mkdirSync(path.join(root, 'teenet'), { recursive: true });
+  const tomlPackage = path.resolve(here, '../../node_modules/smol-toml');
+  fs.cpSync(tomlPackage, path.join(root, 'teenet/toml'), { recursive: true });
   for (const name of ['policy.cjs', 'runtime.cjs', 'native-policy.cjs']) fs.copyFileSync(path.join(here, name), path.join(root, 'teenet', name));
   return reports;
 }

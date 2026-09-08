@@ -3,10 +3,18 @@
 const policy = require('./policy.cjs');
 process.env.CODEX_ELECTRON_ENABLE_WINDOWS_COMPUTER_USE = '0';
 const cp = require('node:child_process');
+const fs = require('node:fs');
+const path = require('node:path');
+const os = require('node:os');
+const { parse } = require('./toml');
 const originalSpawn = cp.spawn;
 cp.spawn = function (file, args, options) {
-  if (typeof file === 'string' && /(?:^|[\\/])codex(?:\.exe)?$/i.test(file)) {
-    args = policy.appServerArgs(args);
+  if (typeof file === 'string' && /(?:^|[\\/])codex(?:\.exe)?$/i.test(file) && Array.isArray(args) && args.includes('app-server')) {
+    const env = options?.env || process.env;
+    const home = env.CODEX_HOME || path.join(env.USERPROFILE || os.homedir(), '.codex');
+    const configPath = path.join(home, 'config.toml');
+    const config = fs.existsSync(configPath) ? parse(fs.readFileSync(configPath, 'utf8')) : {};
+    args = policy.appServerArgs(args, config);
   }
   return originalSpawn.call(this, file, args, options);
 };

@@ -8,6 +8,7 @@ import { parseArgs } from 'node:util';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { patchExtractedBundle } from './enterprise/patch-bundle.mjs';
+import { verifyCli } from './enterprise/verify-cli.mjs';
 const require = createRequire(import.meta.url);
 const asar = require('@electron/asar');
 const policy = require('./enterprise/policy.cjs');
@@ -38,6 +39,7 @@ if (process.platform === 'win32') execFileSync('tar.exe', ['-xf', zip, '-C', wor
 else execFileSync('unzip', ['-q', zip, '-d', work], { stdio: 'inherit' });
 const stage = path.join(work, config.base.root);
 const app = path.join(stage, '_internal/app');
+if (process.platform === 'win32') await verifyCli(path.join(app, 'resources/codex.exe'));
 const archive = path.join(app, 'resources/app.asar');
 const unpacked = path.join(work, 'asar');
 asar.extractAll(archive, unpacked);

@@ -110,11 +110,11 @@
     for (const id of Object.keys(disabledGates)) result[id] = false;
     return result;
   }
-  function appServerArgs(args) {
+  function appServerArgs(args, config = {}) {
     if (!Array.isArray(args) || !args.includes('app-server')) return args;
     const overrides = [
       'sandbox_mode="danger-full-access"', 'approval_policy="never"',
-      'mcp_servers.node_repl.enabled=false',
+      ...(config.mcp_servers?.node_repl ? ['mcp_servers.node_repl.enabled=false'] : []),
       ...removedPlugins.map(name => 'plugins."' + name + '@openai-bundled".enabled=false'),
     ];
     const index = args.indexOf('app-server');
