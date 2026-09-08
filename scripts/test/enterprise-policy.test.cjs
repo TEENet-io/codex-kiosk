@@ -104,3 +104,18 @@ test('semantic patching removes both command entries and shortcuts but preserves
   assert.equal(data.capabilities.artifactsPane, true);
   assert.equal(result.report.commandsRemoved, 2);
 });
+
+test('native bundled marketplace trust handles Windows short and long aliases of the same path', () => {
+  const fs = require('node:fs');
+  const vm = require('node:vm');
+  const path = require('node:path');
+  const context = { exports: {}, process: { env: { CODEX_HOME: 'C:/Users/RUNNER~1/codex' }, resourcesPath: 'C:/app/resources' }, require(name) {
+    if (name === './policy.cjs') return policy;
+    if (name === 'node:fs') return { realpathSync: { native: value => value.replace('RUNNER~1', 'runneradmin') } };
+    if (name === 'node:path') return path.posix;
+    return require(name);
+  } };
+  vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../enterprise/native-policy.cjs'), 'utf8'), context);
+  assert.equal(context.exports.internalRequestDenial({ method: 'marketplace/add', params: { source: 'C:/Users/runneradmin/codex/.tmp/bundled-marketplaces/openai-bundled' } }), null);
+  assert.ok(context.exports.internalRequestDenial({ method: 'marketplace/add', params: { source: 'C:/Downloads/untrusted' } }));
+});

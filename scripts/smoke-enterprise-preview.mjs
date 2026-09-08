@@ -37,7 +37,7 @@ await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
 const port = server.address().port;
 await new Promise(resolve => server.close(resolve));
 const log = fs.openSync(path.join(output, 'desktop.log'), 'w');
-const child = spawn(path.join(root, '_internal/app/ChatGPT.exe'), ['--remote-debugging-port=' + port, '--remote-debugging-address=127.0.0.1'], {
+const child = spawn(path.join(root, '_internal/app/ChatGPT.exe'), ['--remote-debugging-port=' + port, '--remote-debugging-address=127.0.0.1', '--user-data-dir=' + path.join(isolated, 'electron')], {
   cwd: path.join(root, '_internal/app'), windowsHide: false,
   env: { ...process.env, CODEX_HOME: home, CODEX_ELECTRON_USER_DATA_PATH: path.join(isolated, 'electron'), CODEX_OFFLINE_PATCH_DEBUG: '1', CODEX_ELECTRON_ENABLE_WINDOWS_COMPUTER_USE: '0', HTTP_PROXY: 'http://127.0.0.1:9', HTTPS_PROXY: 'http://127.0.0.1:9', NO_PROXY: 'localhost,127.0.0.1', ELECTRON_ENABLE_LOGGING: '1' },
   stdio: ['ignore', log, log],
@@ -59,11 +59,13 @@ try {
   const context = browser.contexts()[0];
   let page;
   for (let attempt = 0; attempt < 45; attempt++) {
-    page = context.pages().find(p => p.url().startsWith('app://-/'));
+    page = context.pages().find(p => p.url().startsWith('app://-/') && !/avatar|pip|composition/.test(p.url()));
     if (page) break;
     await delay(1000);
   }
   assert.ok(page, 'main application page');
+  result.pageUrl = page.url();
+  await page.bringToFront();
   const errors = [];
   page.on('pageerror', error => errors.push(error.message));
   await page.waitForLoadState('domcontentloaded');
