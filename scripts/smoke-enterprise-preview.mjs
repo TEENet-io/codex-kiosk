@@ -4,9 +4,12 @@ import path from 'node:path';
 import os from 'node:os';
 import net from 'node:net';
 import assert from 'node:assert/strict';
-import { spawn, spawnSync } from 'node:child_process';
+import { spawn, spawnSync, execFileSync } from 'node:child_process';
+import { createRequire } from 'node:module';
 import { setTimeout as delay } from 'node:timers/promises';
 import { chromium } from 'playwright';
+const require = createRequire(import.meta.url);
+const asar = require('@electron/asar');
 
 if (process.platform !== 'win32') throw new Error('Enterprise desktop smoke requires Windows');
 let root = path.resolve(process.argv[2]);
@@ -32,6 +35,28 @@ if (fs.existsSync(installer)) {
   root = destination;
   installed = true;
 }
+// Validate the unchanged production executable first. Electron intentionally
+// disables DevTools in production windows; UI instrumentation belongs only in
+// the throwaway installed copy, never in the distributed installer or ZIP.
+const bootstrapRoot = path.join(output, 'production-bootstrap');
+execFileSync(process.execPath, [path.resolve('scripts/offline-direct-launch-smoke.mjs'), '--portable-root', root, '--work-root', bootstrapRoot, '--timeout-ms', '15000'], { stdio: 'inherit' });
+const bootstrap = JSON.parse(fs.readFileSync(path.join(bootstrapRoot, 'result.json'), 'utf8'));
+assert.equal(bootstrap.pass, true, 'unchanged production executable startup');
+assert.ok(!/Uncaught Exception|JavaScript error occurred in the main process/.test(fs.readFileSync(path.join(bootstrapRoot, 'codex-stderr.log'), 'utf8')), 'production main process exceptions');
+if (!installed) {
+  const copy = path.join(isolated, 'instrumented-portable');
+  fs.cpSync(root, copy, { recursive: true });
+  root = copy;
+}
+const archive = path.join(root, '_internal/app/resources/app.asar');
+const instrumentation = path.join(isolated, 'instrumentation');
+asar.extractAll(archive, instrumentation);
+const mainPath = path.join(instrumentation, '.vite/build/main-C8eoOzMw.js');
+const productionMain = fs.readFileSync(mainPath, 'utf8');
+const devtoolsAnchor = 'devTools:this.options.allowDevtools';
+assert.equal(productionMain.split(devtoolsAnchor).length - 1, 2, 'pinned window instrumentation anchors');
+fs.writeFileSync(mainPath, productionMain.replaceAll(devtoolsAnchor, 'devTools:true'));
+await asar.createPackage(instrumentation, archive);
 const server = net.createServer();
 await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
 const port = server.address().port;
@@ -44,7 +69,7 @@ const child = spawn(path.join(root, '_internal/app/ChatGPT.exe'), ['--remote-deb
 });
 let spawnError;
 child.on('error', error => { spawnError = error; });
-const result = { pass: false, version: JSON.parse(fs.readFileSync(path.join(root, 'enterprise-build.json'))).version, screenshots: [], checks: installed ? ['silent installer completed and preserved managed configuration'] : [] };
+const result = { pass: false, version: JSON.parse(fs.readFileSync(path.join(root, 'enterprise-build.json'))).version, instrumentation: 'DevTools enabled only in temporary installed copy; distributed artifacts unchanged', screenshots: [], checks: ['unchanged production executable startup', ...(installed ? ['silent installer completed and preserved managed configuration'] : [])] };
 let browser;
 async function deadline(promise, label, timeout = 15000) {
   let timer;
