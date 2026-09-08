@@ -1,0 +1,63 @@
+name: build-enterprise-preview
+
+on:
+  push:
+    branches: ['enterprise/employee-preview']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: enterprise-preview-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  preview:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - name: Regression tests
+        run: npm test
+      - name: Build and check shared gateway contracts
+        shell: pwsh
+        run: |
+          npm --prefix web-gateway ci
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          npm --prefix web-gateway run build:gateway
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --test './web-gateway/gateway/test/*.test.cjs'
+      - name: Ensure Inno Setup
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) {
+            choco install innosetup --no-progress -y
+          }
+      - name: Build fixed-version preview
+        run: node scripts/build-enterprise-preview.mjs --installer --output C:/te-out
+      - name: Desktop preview smoke and screenshots
+        shell: pwsh
+        run: |
+          $config = Get-Content config/enterprise-preview.json -Raw | ConvertFrom-Json
+          $portable = "C:/te-out/TEENet-Codex-$($config.version)"
+          node scripts/smoke-enterprise-preview.mjs $portable C:/te-out/smoke
+      - name: Upload preview package and validation
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: TEENet-Codex-enterprise-preview
+          path: |
+            C:/te-out/*-setup.exe
+            C:/te-out/*-portable.zip
+            C:/te-out/block-list.md
+            C:/te-out/enterprise-build.json
+            C:/te-out/SHA256SUMS.txt
+            C:/te-out/smoke/
+          if-no-files-found: warn
+          retention-days: 14

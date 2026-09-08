@@ -1,0 +1,113 @@
+#!/usr/bin/env node
+import fs from 'node:fs';
+import path from 'node:path';
+import os from 'node:os';
+import crypto from 'node:crypto';
+import { execFileSync } from 'node:child_process';
+import { parseArgs } from 'node:util';
+import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
+import { patchExtractedBundle } from './enterprise/patch-bundle.mjs';
+const require = createRequire(import.meta.url);
+const asar = require('@electron/asar');
+const policy = require('./enterprise/policy.cjs');
+const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const config = JSON.parse(fs.readFileSync(path.join(repo, 'config/enterprise-preview.json'), 'utf8'));
+const { values } = parseArgs({ options: {
+  'source-zip': { type: 'string' }, 'output': { type: 'string' },
+  'skip-zip': { type: 'boolean', default: false }, 'installer': { type: 'boolean', default: false },
+} });
+export async function hashFile(file) {
+  const hash = crypto.createHash('sha256');
+  for await (const chunk of fs.createReadStream(file)) hash.update(chunk);
+  return hash.digest('hex');
+}
+const output = path.resolve(values.output || path.join(repo, 'dist', config.version));
+const cache = path.join(repo, 'build/enterprise-source');
+fs.mkdirSync(cache, { recursive: true });
+fs.mkdirSync(output, { recursive: true });
+const zip = path.resolve(values['source-zip'] || path.join(cache, 'base-portable.zip'));
+if (!fs.existsSync(zip)) {
+  execFileSync(process.platform === 'win32' ? 'curl.exe' : 'curl', ['-fL', '--retry', '3', config.base.url, '-o', zip], { stdio: 'inherit' });
+}
+if (await hashFile(zip) !== config.base.sha256) throw new Error('Enterprise source SHA-256 mismatch');
+console.log('Verified immutable base:', config.base.tag);
+// Short paths also avoid Windows MAX_PATH failures when extracting the bundle.
+const work = fs.mkdtempSync(path.join(process.platform === 'win32' ? os.tmpdir() : path.join(repo, 'build'), 'te-'));
+if (process.platform === 'win32') execFileSync('tar.exe', ['-xf', zip, '-C', work], { stdio: 'inherit' });
+else execFileSync('unzip', ['-q', zip, '-d', work], { stdio: 'inherit' });
+const stage = path.join(work, config.base.root);
+const app = path.join(stage, '_internal/app');
+const archive = path.join(app, 'resources/app.asar');
+const unpacked = path.join(work, 'asar');
+asar.extractAll(archive, unpacked);
+const report = patchExtractedBundle(unpacked);
+console.log('Enterprise semantic patches:', JSON.stringify(report));
+await asar.createPackage(unpacked, archive);
+// Both original search locations must use the same enforced runtime policy.
+for (const relative of ['_internal/patches', '_internal/app/patches']) {
+  const dir = path.join(stage, relative);
+  const initPath = path.join(dir, 'init.cjs');
+  let init = fs.readFileSync(initPath, 'utf8');
+  const anchor = '\n  // ═══════════════════════════════════════════════════════════════════════\n  // Helpers';
+  if (!init.includes(anchor)) throw new Error('Runtime feature bootstrap drift: ' + relative);
+  init = init.replace(anchor, '\n  STATSIG_GATE_OVERRIDES = require("./policy.cjs").applyGatePolicy(STATSIG_GATE_OVERRIDES);\n  FORCED_DESKTOP_FEATURE_STATE = require("./policy.cjs").applyFeaturePolicy(FORCED_DESKTOP_FEATURE_STATE);\n' + anchor);
+  fs.writeFileSync(initPath, init);
+  fs.copyFileSync(path.join(repo, 'scripts/enterprise/policy.cjs'), path.join(dir, 'policy.cjs'));
+}
+const marketplaceRoot = path.join(app, 'resources/plugins/openai-bundled');
+const marketplacePath = path.join(marketplaceRoot, '.agents/plugins/marketplace.json');
+const marketplace = JSON.parse(fs.readFileSync(marketplacePath, 'utf8'));
+marketplace.plugins = marketplace.plugins.filter(plugin => !policy.removedPlugins.includes(plugin.name));
+fs.writeFileSync(marketplacePath, JSON.stringify(marketplace, null, 2) + '\n');
+for (const name of policy.removedPlugins) fs.rmSync(path.join(marketplaceRoot, 'plugins', name), { recursive: true, force: true });
+// Employee package has no reconfiguration or browser installation utilities.
+for (const relative of ['Setup Codex.cmd', '_internal/chrome-extension', '_internal/tools', '_internal/repair-chrome-host.ps1', '_internal/setup-codex-offline.ps1', '_internal/powershell-shim']) {
+  fs.rmSync(path.join(stage, relative), { recursive: true, force: true });
+}
+for (const name of ['Codex.cmd', 'Codex.vbs']) {
+  const file = path.join(stage, name);
+  const source = fs.readFileSync(file, 'utf8').replaceAll('CODEX_ELECTRON_ENABLE_WINDOWS_COMPUTER_USE=1', 'CODEX_ELECTRON_ENABLE_WINDOWS_COMPUTER_USE=0').replaceAll('("CODEX_ELECTRON_ENABLE_WINDOWS_COMPUTER_USE") = "1"', '("CODEX_ELECTRON_ENABLE_WINDOWS_COMPUTER_USE") = "0"');
+  fs.writeFileSync(file, source);
+}
+fs.copyFileSync(path.join(repo, 'scripts/setup-enterprise-preview.ps1'), path.join(stage, '_internal/setup-enterprise-preview.ps1'));
+const cmdPath = path.join(stage, 'Codex.cmd');
+fs.writeFileSync(cmdPath, fs.readFileSync(cmdPath, 'utf8').replace('start "" /D', 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0_internal\\setup-enterprise-preview.ps1"\r\nif errorlevel 1 exit /b 1\r\nstart "" /D'));
+const vbsPath = path.join(stage, 'Codex.vbs');
+fs.writeFileSync(vbsPath, fs.readFileSync(vbsPath, 'utf8').replace('shell.CurrentDirectory = appRoot', 'If shell.Run("powershell.exe -NoProfile -ExecutionPolicy Bypass -File """ & fso.BuildPath(packageRoot, "_internal\\setup-enterprise-preview.ps1") & """", 0, True) <> 0 Then WScript.Quit 1\r\nshell.CurrentDirectory = appRoot'));
+const blockList = `# TEENet 企业版功能清单\n\n版本：${config.version}\n基线：${config.base.tag}（MSIX ${config.base.msixVersion}）\n基线 SHA-256：${config.base.sha256}\n\n## 屏蔽\n\n- 完整设置、配置文件编辑、账户切换、连接与环境管理。\n- Worktree、Pull Requests、自动化、Heartbeat、Scratchpad、个性化、头像悬浮层、Chronicle。\n- Computer Use、浏览器控制、Chrome 扩展和本机桥接。\n- 员工安装/卸载插件、添加插件市场、导入导出配置。\n- 对应快捷键、命令菜单及被禁止的配置/插件 RPC。\n\n## 保留\n\n- 本地对话、项目、归档/恢复、语音、快捷键、外观。\n- 会话模型切换，默认模型沿用管理员下发配置。\n- 默认完整访问、普通文件与终端能力、Skill 创建。\n- 管理员预装插件与办公运行时，移除浏览器/Chrome/Computer Use 插件。\n\n## 管理与验收边界\n\n- 这是预览版本。完整设置替换为仅包含外观、语音、快捷键和归档的精简页面。\n- 沿用现有 CODEX_HOME，不覆盖个人 Provider、密钥或会话文件。\n- 默认模型、隐私策略和插件预装名单由现有管理系统配置，本包不内置员工密钥。\n- 对话采集沿用 ai-env-mgr；项目归属落库、后台回收和网关计费需另外联调，尚未在本包验收。\n- 完整访问和 Skill 创建保留，应用内限制不能代替终端操作系统权限管理。\n- Windows 实测结果见 smoke-result.json（若存在）；没有该结果时，不视为已完成 Windows 验收。\n`;
+fs.writeFileSync(path.join(stage, 'block-list.md'), blockList);
+fs.writeFileSync(path.join(stage, 'README.md'), '# TEENet AI 工作间预览\n\n解压后双击 Codex.vbs 启动。使用管理员已有的模型与凭据配置。功能清单见 block-list.md。\n\n本包仅供单机预览，请先完成验收，再通过管理系统安排员工部署。\n');
+fs.writeFileSync(path.join(stage, 'teenet-version.txt'), config.version + '\n');
+const manifest = { ...config, builtAt: new Date().toISOString(), sourceCommit: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: repo, encoding: 'utf8' }).trim(), asarSha256: await hashFile(archive), report, windowsSmoke: 'not-run', status: 'preview' };
+fs.writeFileSync(path.join(stage, 'enterprise-build.json'), JSON.stringify(manifest, null, 2) + '\n');
+execFileSync(process.execPath, [path.join(repo, 'scripts/verify-enterprise-preview.mjs'), stage], { stdio: 'inherit' });
+const portable = path.join(output, 'TEENet-Codex-' + config.version);
+if (fs.existsSync(portable)) throw new Error('Output exists; use a fresh --output path: ' + portable);
+fs.cpSync(stage, portable, { recursive: true });
+fs.writeFileSync(path.join(output, 'block-list.md'), blockList);
+fs.writeFileSync(path.join(output, 'enterprise-build.json'), JSON.stringify(manifest, null, 2) + '\n');
+const assets = [];
+if (!values['skip-zip']) {
+  const zipOutput = portable + '-portable.zip';
+  if (process.platform === 'win32') execFileSync('7z', ['a', '-tzip', '-mx=5', zipOutput, path.basename(portable)], { cwd: output, stdio: 'inherit' });
+  else execFileSync('zip', ['-q', '-r', '-5', zipOutput, path.basename(portable)], { cwd: output, stdio: 'inherit' });
+  assets.push(zipOutput);
+}
+if (values.installer) {
+  if (process.platform !== 'win32') throw new Error('Native installer requires Windows');
+  const compiler = path.join(process.env['ProgramFiles(x86)'] || 'C:/Program Files (x86)', 'Inno Setup 6/ISCC.exe');
+  const iss = fs.readFileSync(path.join(repo, 'installer/TEENetPreview.iss.tpl'), 'utf8')
+    .replaceAll('__SOURCE_ROOT__', portable).replaceAll('__OUTPUT_ROOT__', output)
+    .replaceAll('__APP_VERSION__', config.version).replaceAll('__VERSION_INFO_VERSION__', config.base.msixVersion)
+    .replaceAll('__INSTALLER_ROOT__', path.join(repo, 'installer'));
+  const issPath = path.join(work, 'enterprise.iss');
+  fs.writeFileSync(issPath, '\ufeff' + iss);
+  execFileSync(compiler, [issPath], { stdio: 'inherit' });
+  assets.push(path.join(output, 'TEENet-Codex-' + config.version + '-setup.exe'));
+}
+const sums = [];
+for (const asset of assets) sums.push((await hashFile(asset)) + ' *' + path.basename(asset));
+fs.writeFileSync(path.join(output, 'SHA256SUMS.txt'), sums.join('\n') + '\n');
+console.log('Preview ready:', portable);
+console.log('Temporary build root:', work);

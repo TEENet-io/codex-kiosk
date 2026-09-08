@@ -1,5 +1,7 @@
 # Codex Only Local for Windows
 
+TEENet 企业精简版预览在独立 `enterprise/employee-preview` 分支维护，说明见 [企业版预览](docs/enterprise-preview.md)。运行 `npm run build:enterprise` 生成固定版本便携包；Windows 上追加 `-- --installer` 生成独立安装器。原有全功能构建流程如下。
+
 这是一个研究性质的非官方 Codex Windows 重打包项目。
 
 本仓库从 Microsoft Store 的官方 Codex/ChatGPT Windows 包构建安装程序，并应用版本锁定补丁：

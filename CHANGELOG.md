@@ -2,6 +2,14 @@
 
 ## Unreleased
 
+### TEENet enterprise preview
+
+- Added an independent preview build pinned to the SHA-256 of the published `26.810.52044-b1` portable package.
+- Added a shared employee policy for desktop capabilities, native/renderer commands, settings routes, configuration writes and plugin management. The full settings shell is replaced with appearance, voice, keyboard shortcuts and archived chats.
+- Removed browser/Chrome/Computer Use assets and employee setup utilities from the preview. Existing administrator model and Provider configuration is preserved; native bootstrap may initialize approved bundled office plugins.
+- Added a separate preview installer, generated `block-list.md`, package verifier, regression tests and a Windows artifact workflow with desktop screenshots. No fleet deployment or GitHub Release is performed by this workflow.
+- Default-model provisioning, project-aware conversation collection and gateway billing remain management-system integration checks, documented in `docs/enterprise-preview.md`.
+
 ### 中文
 
 - 将每日上游探测与完整 Windows 打包拆开：每日 canary 只解析 Store 元数据，并按 MSIX
