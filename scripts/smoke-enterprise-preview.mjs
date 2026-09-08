@@ -59,7 +59,7 @@ try {
   const context = browser.contexts()[0];
   let page;
   for (let attempt = 0; attempt < 45; attempt++) {
-    page = context.pages().find(p => p.url().startsWith('codex:'));
+    page = context.pages().find(p => p.url().startsWith('app://-/'));
     if (page) break;
     await delay(1000);
   }

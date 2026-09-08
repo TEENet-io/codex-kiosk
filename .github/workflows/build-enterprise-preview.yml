@@ -56,7 +56,14 @@ jobs:
         run: |
           $config = Get-Content config/enterprise-preview.json -Raw | ConvertFrom-Json
           $portable = "C:/te-out/TEENet-Codex-$($config.version)"
-          node scripts/smoke-enterprise-preview.mjs $portable C:/te-out/smoke
+          $PSNativeCommandUseErrorActionPreference = $false
+          node scripts/smoke-enterprise-preview.mjs $portable C:/te-out/smoke 2>&1 | Tee-Object C:/te-out/smoke.log
+          $smokeExit = $LASTEXITCODE
+          if ($smokeExit -ne 0) {
+            $detail = (Get-Content C:/te-out/smoke.log -Tail 35) -join '%0A'
+            Write-Output "::error::$detail"
+            exit $smokeExit
+          }
       - name: Upload preview package and validation
         if: always()
         uses: actions/upload-artifact@v7
@@ -69,6 +76,7 @@ jobs:
             C:/te-out/enterprise-build.json
             C:/te-out/SHA256SUMS.txt
             C:/te-out/build.log
+            C:/te-out/smoke.log
             C:/te-out/smoke/
           if-no-files-found: warn
           retention-days: 14
