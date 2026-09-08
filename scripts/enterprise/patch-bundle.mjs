@@ -45,6 +45,16 @@ function replaceExact(source, needle, replacement, label, count = 1) {
   return source.split(needle).join(replacement);
 }
 
+export function patchPinnedStartupControls(source, kind) {
+  if (kind === 'native') {
+    return replaceExact(source, 'async getState(){let e=await this.getService();e.start();', 'async getState(){return this.deviceState;/*teenet:no-micro-hardware*/let e=await this.getService();e.start();', 'optional USB controller discovery');
+  }
+  source = replaceExact(source, 'function cNc(e){let t=(0,lNc.c)(26)', 'function cNc(e){return null;/*teenet:no-model-promotion*/let t=(0,lNc.c)(26)', 'model promotion modal');
+  // The enterprise app-server always uses the requested full-access default;
+  // it does not need the workspace-write Windows sandbox installation wizard.
+  return replaceExact(source, 'nUs=ja(Q,(e,{get:t})=>{if(e==null||e!==`local`)', 'nUs=ja(Q,(e,{get:t})=>{return tUs;/*teenet:full-access-no-setup*/if(e==null||e!==`local`)', 'Windows sandbox setup requirement');
+}
+
 export function patchSemanticControls(source, sourceType = 'module') {
   const ast = parse(source, { ecmaVersion: 'latest', sourceType, allowReturnOutsideFunction: true });
   const edits = [];
@@ -109,6 +119,7 @@ export function patchExtractedBundle(root) {
       `, 'native RPC boundary ' + rel);
     }
     if (rel === '.vite/build/main-C8eoOzMw.js') {
+      source = patchPinnedStartupControls(source, 'native');
       source = 'const _teenetPolicy=require("../../teenet/policy.cjs");\n' + source;
       source = replaceExact(source, 'k=(e,t)=>{let r=n.Ut({commandId:e});', 'k=(e,t)=>{const hidden=_teenetPolicy.blockedMenuItem(e);if(hidden)return hidden;let r=n.Ut({commandId:e});', 'native menu references to removed commands');
       source = replaceExact(source, 'function Tr(){return xr}', 'function Tr(){return _teenetPolicy.applyFeaturePolicy(xr)}', 'desktop feature reader');
@@ -135,6 +146,7 @@ export function patchExtractedBundle(root) {
       `, 'renderer RPC boundary');
     }
     if (rel === 'webview/assets/app-initial-TxV8Ik1J.js') {
+      source = patchPinnedStartupControls(source, 'renderer');
       source = 'import "./teenet-policy.js";\n' + source;
       source = replaceExact(source, 'workspaceRootsIsLoading:u}){return e.isLoading?', 'workspaceRootsIsLoading:u}){return globalThis.TEENetPolicy.onboardingTarget(e);/*teenet:managed-onboarding*/return e.isLoading?', 'managed onboarding decision');
       source = replaceExact(source, 'e.Fragment=n,e.jsx=r,e.jsxs=r', 'e.Fragment=n,e.jsx=globalThis.TEENetPolicy.createJsxGuard(r),e.jsxs=e.jsx', 'React JSX boundary');

@@ -102,6 +102,17 @@ test('provisioned employees skip personalization onboarding without bypassing au
   assert.equal(policy.onboardingTarget({ requiresAuth: true, authMethod: 'apikey' }), 'app');
 });
 
+test('employee home omits scheduled navigation and optional first-run integrations', async () => {
+  assert.equal(policy.hiddenMessageId('sidebarElectron.inboxRouteNavLink'), true);
+  const { patchPinnedStartupControls } = await import('../enterprise/patch-bundle.mjs');
+  const renderer = 'function cNc(e){let t=(0,lNc.c)(26);return t}let tUs={isRequired:false,requirement:null};const ja=(q,fn)=>fn,Q={};let nUs=ja(Q,(e,{get:t})=>{if(e==null||e!==`local`)return tUs;throw Error("sandbox setup")});';
+  const result = Function(patchPinnedStartupControls(renderer, 'renderer') + ';return [cNc({}),nUs("local",{})]')();
+  assert.deepEqual(result, [null, { isRequired: false, requirement: null }]);
+  const native = 'class Device{deviceState={status:"not-detected"};async getState(){let e=await this.getService();e.start();return e.getState()}}';
+  const device = Function(patchPinnedStartupControls(native, 'native') + ';return new Device')();
+  assert.deepEqual(await device.getState(), { status: 'not-detected' });
+});
+
 test('semantic patching removes both command entries and shortcuts but preserves unrelated data', async () => {
   const { patchSemanticControls } = await import('../enterprise/patch-bundle.mjs');
   const source = 'const commands=[{id:`settings`,titleIntlId:`settings`,keys:[`Ctrl+,`]},{id:`keyboardShortcuts`,titleIntlId:`keys`},{id:`globalDictationHold`,titleIntlId:`voice`},{id:`openBrowserTab`,titleIntlId:`browser`}];const capabilities={computerUse:!0,artifactsPane:!0};';

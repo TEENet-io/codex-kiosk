@@ -127,7 +127,7 @@
   }
   function hiddenMessageId(id) {
     if (typeof id !== 'string') return false;
-    return /^(?:codex\.profileDropdown\.(?:openConfigToml|logOut|profile|workspaceSettings|switchTo|signIn|apiKeyAuth|amazonBedrockAuth|copilotAuth|getPlus|invite)|sidebarElectron\.(?:connectionsNavLink|pullRequestsRouteNavLink|addAutomation|editAutomation|createStableWorktree|addRemoteProjectCoachmark|debugNavLink)|plugins\.detail\.(?:install$|uninstall$|mcp\.settings|hooks\.settings)|skills\.appsPage\.(?:addMarketplace|marketplace\.)|settings\.general\.appearance\.chromeTheme\.(?:import|export)|settings\.general\.realtimeVoiceScreenContext|composer\.toggleWorktreeMode|threadHeader\.forkIntoWorktree|composer\.forkSlashCommand\.option\.worktree)/.test(id);
+    return /^(?:codex\.profileDropdown\.(?:openConfigToml|logOut|profile|workspaceSettings|switchTo|signIn|apiKeyAuth|amazonBedrockAuth|copilotAuth|getPlus|invite)|sidebarElectron\.(?:connectionsNavLink|pullRequestsRouteNavLink|inboxRouteNavLink|priorityThreads\.showScheduled|addAutomation|editAutomation|createStableWorktree|addRemoteProjectCoachmark|debugNavLink)|plugins\.detail\.(?:install$|uninstall$|mcp\.settings|hooks\.settings)|skills\.appsPage\.(?:addMarketplace|marketplace\.)|settings\.general\.appearance\.chromeTheme\.(?:import|export)|settings\.general\.realtimeVoiceScreenContext|composer\.toggleWorktreeMode|threadHeader\.forkIntoWorktree|composer\.forkSlashCommand\.option\.worktree)/.test(id);
   }
   const hiddenTexts = new Set();
   function markHiddenText(value) {

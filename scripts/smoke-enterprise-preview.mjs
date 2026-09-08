@@ -157,6 +157,11 @@ try {
     } finally { clearTimeout(timer); }
   };
   await capture('01-home.png');
+  const homeText = await evaluate(() => document.body.innerText);
+  assert.ok(!/^Scheduled$/m.test(homeText), 'scheduled navigation removed');
+  assert.ok(!homeText.includes('Finish Windows setup'), 'full-access chat does not require environment setup');
+  assert.ok(!homeText.includes('Introducing GPT-'), 'model promotion removed');
+  result.checks.push('employee home without scheduled navigation, environment setup or model promotion');
   const navigate = async route => {
     await evaluate(async route => {
       const app = await import('/assets/app-initial-TxV8Ik1J.js');
