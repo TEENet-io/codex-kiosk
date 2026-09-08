@@ -113,6 +113,7 @@ export function patchExtractedBundle(root) {
       source = replaceExact(source, 'k=(e,t)=>{let r=n.Ut({commandId:e});', 'k=(e,t)=>{const hidden=_teenetPolicy.blockedMenuItem(e);if(hidden)return hidden;let r=n.Ut({commandId:e});', 'native menu references to removed commands');
       source = replaceExact(source, 'function Tr(){return xr}', 'function Tr(){return _teenetPolicy.applyFeaturePolicy(xr)}', 'desktop feature reader');
       source = replaceExact(source, 'function Or(e){', 'function Or(e){e=_teenetPolicy.applyFeaturePolicy(e);', 'desktop feature updates');
+      source = replaceExact(source, 'async function Hl(e){let t=(await Ul(e)).browserExtensions', 'async function Hl(e){return [];/*teenet:no-browser-extension-sync*/let t=(await Ul(e)).browserExtensions', 'browser extension synchronization');
       // The old browser reconciliation deletes MCP settings when capabilities
       // are off. Enterprise disables its runtime through CLI overrides instead
       // and leaves the administrator's config file untouched.
@@ -135,6 +136,7 @@ export function patchExtractedBundle(root) {
     }
     if (rel === 'webview/assets/app-initial-TxV8Ik1J.js') {
       source = 'import "./teenet-policy.js";\n' + source;
+      source = replaceExact(source, 'workspaceRootsIsLoading:u}){return e.isLoading?', 'workspaceRootsIsLoading:u}){return globalThis.TEENetPolicy.onboardingTarget(e);/*teenet:managed-onboarding*/return e.isLoading?', 'managed onboarding decision');
       source = replaceExact(source, 'e.Fragment=n,e.jsx=r,e.jsxs=r', 'e.Fragment=n,e.jsx=globalThis.TEENetPolicy.createJsxGuard(r),e.jsxs=e.jsx', 'React JSX boundary');
       source = replaceExact(source, 'ims=`general-settings`', 'ims=`appearance`', 'default preferences route');
       source = replaceExact(source, '{slug:n}=e,r=tdl[n],i;', '{slug:n}=e,r=globalThis.TEENetPolicy.routeAllowed("/settings/"+n)?tdl[n]:()=>null,i;', 'settings child route guard');

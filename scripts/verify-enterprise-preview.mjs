@@ -33,6 +33,7 @@ assert.ok(main.includes('return _teenetPolicy.applyFeaturePolicy(xr)'));
 assert.ok(main.includes('_teenetPolicy.blockedMenuItem(e)'));
 const renderer = read('webview/assets/app-initial-TxV8Ik1J.js');
 assert.ok(renderer.includes('globalThis.TEENetPolicy.createJsxGuard(r)'));
+assert.ok(renderer.includes('globalThis.TEENetPolicy.onboardingTarget(e)'));
 const preferences = read('webview/assets/settings-page-B4j1j14I.js');
 assert.ok(preferences.includes('export{TEENetPreferences as SettingsPage}'));
 assert.ok(!preferences.includes('export{Dn as SettingsPage}'));

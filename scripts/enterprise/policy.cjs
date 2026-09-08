@@ -54,6 +54,11 @@
   function blockedMenuItem(id) {
     return commandAllowed(id) ? null : { id, label: id, visible: false, enabled: false };
   }
+  function onboardingTarget(auth) {
+    if (auth.isLoading) return null;
+    if ((!auth.authMethod && auth.requiresAuth) || (auth.authMethod === 'chatgpt' && auth.hasChatGptToken === false)) return 'login';
+    return 'app';
+  }
   function routeAllowed(input) {
     if (typeof input !== 'string') return false;
     let route;
@@ -93,7 +98,7 @@
     // are checked separately at the renderer RPC boundary.
     if (request?.method?.startsWith('config/')) return null;
     const normalize = value => typeof value === 'string' ? value.replaceAll('\\', '/').replace(/\/$/, '').toLowerCase() : null;
-    const trusted = candidate => typeof candidate === 'string' && !candidate.split(/[\\/]/).includes('..') && trustedMarketplacePaths.some(p => normalize(p) === normalize(candidate));
+    const trusted = candidate => typeof candidate === 'string' && !candidate.split(/[\\/]/).includes('..') && trustedMarketplacePaths.some(p => normalize(p) === normalize(candidate) || normalize(p) + '/.agents/plugins/marketplace.json' === normalize(candidate));
     if (request?.method === 'marketplace/add' && trusted(request.params?.source)) return null;
     if (request?.method === 'plugin/install' && approvedBundledPlugins.includes(request.params?.pluginName) && trusted(request.params?.marketplacePath)) return null;
     return requestDenial(request);
@@ -160,5 +165,5 @@
       return element;
     };
   }
-  return Object.freeze({ disabledGates, disabledFeatures, removedPlugins, approvedBundledPlugins, blockedNativeHandlers, preferences, reason, commandAllowed, blockedMenuItem, routeAllowed, requestDenial, internalRequestDenial, messageDenial, applyFeaturePolicy, applyGatePolicy, appServerArgs, hiddenMessageId, markHiddenText, createJsxGuard });
+  return Object.freeze({ disabledGates, disabledFeatures, removedPlugins, approvedBundledPlugins, blockedNativeHandlers, preferences, reason, commandAllowed, blockedMenuItem, onboardingTarget, routeAllowed, requestDenial, internalRequestDenial, messageDenial, applyFeaturePolicy, applyGatePolicy, appServerArgs, hiddenMessageId, markHiddenText, createJsxGuard });
 });

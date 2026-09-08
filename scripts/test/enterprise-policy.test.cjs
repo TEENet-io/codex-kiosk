@@ -90,8 +90,16 @@ test('only native bootstrap can install approved plugins from the exact bundled 
   const request = { method: 'plugin/install', params: { pluginName: 'documents', marketplacePath: trusted[0] } };
   assert.ok(policy.requestDenial(request));
   assert.equal(policy.internalRequestDenial(request, trusted), null);
+  assert.equal(policy.internalRequestDenial({ ...request, params: { ...request.params, marketplacePath: trusted[0] + '/.agents/plugins/marketplace.json' } }, trusted), null);
   assert.ok(policy.internalRequestDenial({ ...request, params: { ...request.params, pluginName: 'chrome' } }, trusted));
   assert.ok(policy.internalRequestDenial({ ...request, params: { ...request.params, marketplacePath: 'C:/Downloads/evil/openai-bundled' } }, trusted));
+});
+
+test('provisioned employees skip personalization onboarding without bypassing authentication', () => {
+  assert.equal(policy.onboardingTarget({ isLoading: true }), null);
+  assert.equal(policy.onboardingTarget({ requiresAuth: true, authMethod: null }), 'login');
+  assert.equal(policy.onboardingTarget({ requiresAuth: true, authMethod: 'chatgpt', hasChatGptToken: false }), 'login');
+  assert.equal(policy.onboardingTarget({ requiresAuth: true, authMethod: 'apikey' }), 'app');
 });
 
 test('semantic patching removes both command entries and shortcuts but preserves unrelated data', async () => {

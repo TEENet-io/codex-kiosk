@@ -164,7 +164,7 @@ try {
     }, route);
   };
   await navigate('/settings/appearance');
-  await waitFor(() => document.querySelector('[data-teenet-preferences]'));
+  await waitFor(() => !!document.querySelector('[data-teenet-preferences]'));
   assert.deepEqual(await evaluate(() => [...document.querySelectorAll('nav[aria-label="个人偏好"] button')].map(button => button.textContent)), ['外观', '语音', '快捷键', '归档对话']);
   result.checks.push('limited preferences navigation');
   await capture('02-appearance.png');
@@ -186,6 +186,7 @@ try {
   assert.deepEqual(errors, [], 'renderer exceptions');
   assert.ok(!/Uncaught Exception|JavaScript error occurred in the main process/.test(fs.readFileSync(path.join(output, 'desktop.log'), 'utf8')), 'no main process exceptions');
   assert.ok(!fs.readFileSync(path.join(output, 'desktop.log'), 'utf8').includes('plugin_marketplace_add_failed'), 'native bundled marketplace initialized');
+  assert.ok(!fs.readFileSync(path.join(output, 'desktop.log'), 'utf8').includes('bundled_plugins_marketplace_install_failed'), 'approved bundled plugins installed');
   result.checks.push('no renderer exceptions during preference navigation');
   const after = fs.readFileSync(path.join(home, 'config.toml'), 'utf8');
   assert.ok(after.includes('model_provider = "preview"'), 'provider preserved');
