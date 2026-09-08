@@ -10,7 +10,7 @@ const asar = require('@electron/asar');
 const policy = require('./enterprise/policy.cjs');
 const root = path.resolve(process.argv[2] || '');
 const archive = path.join(root, '_internal/app/resources/app.asar');
-const read = name => asar.extractFile(archive, name).toString('utf8');
+const read = name => asar.extractFile(archive, path.normalize(name)).toString('utf8');
 const metadata = JSON.parse(fs.readFileSync(path.join(root, 'enterprise-build.json'), 'utf8'));
 const digest = crypto.createHash('sha256');
 for await (const chunk of fs.createReadStream(archive)) digest.update(chunk);
