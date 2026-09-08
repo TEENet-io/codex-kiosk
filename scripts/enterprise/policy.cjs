@@ -146,6 +146,9 @@
       }
       const ownHidden = hiddenMessageId(props?.id);
       const descendantHidden = marked(props?.children) || marked(props?.title) || marked(props?.label) || marked(props?.tooltipContent) || marked(props?.['aria-label']);
+      // Settings fields render their controls in a separate prop, outside the
+      // label subtree. Remove the field before that control can be rendered.
+      if (props && 'control' in props && marked(props.label)) return null;
       const actionable = props && (typeof props.onClick === 'function' || typeof props.onSelect === 'function' || props.href != null || props.to != null || type === 'button' || type === 'a' || props.role === 'menuitem');
       if (descendantHidden && actionable) return null;
       if (typeof props?.to === 'string' && !routeAllowed(props.to) && props.to !== '/settings') return null;

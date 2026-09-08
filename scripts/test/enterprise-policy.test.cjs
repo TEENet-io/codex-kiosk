@@ -48,6 +48,14 @@ test('removing a blocked menu item preserves adjacent chat and voice actions', (
   assert.deepEqual(jsx('div', { children: [blocked, voice] }).props.children, [null, voice]);
 });
 
+test('a restricted preference removes its entire field while retaining ordinary voice fields', () => {
+  const jsx = policy.createJsxGuard((type, props) => ({ type, props }));
+  const label = jsx('FormattedMessage', { id: 'settings.general.realtimeVoiceScreenContext.label' });
+  const control = jsx('Switch', { checked: true, onChange() {} });
+  assert.equal(jsx('SettingsRow', { label, control }), null);
+  assert.ok(jsx('SettingsRow', { label: 'Voice', control }));
+});
+
 test('feature policy overrides stale user values without changing voice or artifacts', () => {
   const original = { computerUse: true, browserPane: true, artifactsPane: true, dictation: true };
   const result = policy.applyFeaturePolicy(original);
