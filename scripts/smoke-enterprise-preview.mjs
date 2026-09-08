@@ -9,7 +9,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { chromium } from 'playwright';
 
 if (process.platform !== 'win32') throw new Error('Enterprise desktop smoke requires Windows');
-const root = path.resolve(process.argv[2]);
+let root = path.resolve(process.argv[2]);
 const output = path.resolve(process.argv[3] || path.join(root, '..', 'smoke'));
 fs.mkdirSync(output, { recursive: true });
 const isolated = fs.mkdtempSync(path.join(os.tmpdir(), 'teenet-smoke-'));
@@ -19,6 +19,19 @@ const catalog = path.join(root, '_internal/models-api.json').replaceAll('\\', '/
 const config = `model = "gpt-5.6"\nmodel_provider = "preview"\nmodel_catalog_json = ${JSON.stringify(catalog)}\n[model_providers.preview]\nname = "TEENet Preview"\nbase_url = "http://127.0.0.1:9/v1"\nwire_api = "responses"\nexperimental_bearer_token = "preview-not-a-real-key"\n`;
 fs.writeFileSync(path.join(home, 'config.toml'), config);
 fs.writeFileSync(path.join(home, 'auth.json'), JSON.stringify({ OPENAI_API_KEY: 'preview-not-a-real-key', auth_mode: 'apikey' }));
+const installer = root + '-setup.exe';
+let installed = false;
+if (fs.existsSync(installer)) {
+  const destination = path.join(isolated, 'installed');
+  const installation = spawnSync(installer, ['/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/NOICONS', '/DIR=' + destination, '/LOG=' + path.join(output, 'installer.log')], {
+    env: { ...process.env, CODEX_HOME: home }, timeout: 180000, windowsHide: true,
+  });
+  assert.equal(installation.status, 0, installation.error?.message || 'preview installer exit code');
+  assert.equal(fs.readFileSync(path.join(home, 'config.toml'), 'utf8'), config, 'installer preserves managed configuration');
+  assert.ok(fs.existsSync(path.join(home, 'skills/.system/skill-creator/SKILL.md')), 'installer seeds skill creator');
+  root = destination;
+  installed = true;
+}
 const server = net.createServer();
 await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
 const port = server.address().port;
@@ -31,7 +44,7 @@ const child = spawn(path.join(root, '_internal/app/ChatGPT.exe'), ['--remote-deb
 });
 let spawnError;
 child.on('error', error => { spawnError = error; });
-const result = { pass: false, version: JSON.parse(fs.readFileSync(path.join(root, 'enterprise-build.json'))).version, screenshots: [], checks: [] };
+const result = { pass: false, version: JSON.parse(fs.readFileSync(path.join(root, 'enterprise-build.json'))).version, screenshots: [], checks: installed ? ['silent installer completed and preserved managed configuration'] : [] };
 let browser;
 try {
   let ready = false;
