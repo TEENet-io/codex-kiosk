@@ -66,42 +66,65 @@ try {
   assert.ok(page, 'main application page');
   result.pageUrl = page.url();
   await page.bringToFront();
+  const cdp = await context.newCDPSession(page);
   const errors = [];
-  page.on('pageerror', error => errors.push(error.message));
-  await page.waitForLoadState('domcontentloaded');
+  cdp.on('Runtime.exceptionThrown', event => errors.push(event.exceptionDetails.exception?.description || event.exceptionDetails.text));
+  await cdp.send('Runtime.enable');
+  const evaluate = async (fn, arg) => {
+    const response = await cdp.send('Runtime.evaluate', { expression: '(' + fn.toString() + ')(' + JSON.stringify(arg ?? null) + ')', returnByValue: true, awaitPromise: true, timeout: 10000 });
+    if (response.exceptionDetails) throw new Error(response.exceptionDetails.exception?.description || response.exceptionDetails.text);
+    return response.result.value;
+  };
+  const waitFor = async fn => {
+    for (let attempt = 0; attempt < 30; attempt++) {
+      if (await evaluate(fn)) return;
+      await delay(1000);
+    }
+    throw new Error('Page condition timed out: ' + fn.toString());
+  };
+  await waitFor(() => document.body && document.readyState !== 'loading');
   await delay(8000);
   const capture = async name => {
     // Headless Windows runners can expose an interactive DOM without a
     // compositor surface. Preserve that distinction in the validation report.
-    fs.writeFileSync(path.join(output, name.replace('.png', '.txt')), await page.locator('body').innerText());
+    fs.writeFileSync(path.join(output, name.replace('.png', '.txt')), await evaluate(() => document.body.innerText));
+    let timer;
     try {
-      await page.screenshot({ path: path.join(output, name), timeout: 5000 });
+      const screenshot = await Promise.race([
+        cdp.send('Page.captureScreenshot', { format: 'png', fromSurface: false }),
+        new Promise((_, reject) => { timer = setTimeout(() => reject(new Error('Compositor capture timed out')), 5000); }),
+      ]);
+      fs.writeFileSync(path.join(output, name), Buffer.from(screenshot.data, 'base64'));
       result.screenshots.push(name);
     } catch (error) {
       (result.screenshotErrors ||= []).push({ name, error: error.message });
-    }
+    } finally { clearTimeout(timer); }
   };
   await capture('01-home.png');
   const navigate = async route => {
-    await page.evaluate(async route => {
+    await evaluate(async route => {
       const app = await import('/assets/app-initial-TxV8Ik1J.js');
       app.BTt.dispatchHostMessage({ type: 'navigate-to-route', path: route });
     }, route);
   };
   await navigate('/settings/appearance');
-  await page.locator('[data-teenet-preferences]').waitFor({ timeout: 30000 });
-  const nav = page.getByRole('navigation', { name: '个人偏好' });
-  assert.deepEqual(await nav.getByRole('button').allTextContents(), ['外观', '语音', '快捷键', '归档对话']);
+  await waitFor(() => document.querySelector('[data-teenet-preferences]'));
+  assert.deepEqual(await evaluate(() => [...document.querySelectorAll('nav[aria-label="个人偏好"] button')].map(button => button.textContent)), ['外观', '语音', '快捷键', '归档对话']);
   result.checks.push('limited preferences navigation');
   await capture('02-appearance.png');
   await navigate('/settings/connections');
   await delay(1500);
-  assert.equal(await nav.getByRole('button', { name: '外观', exact: true }).getAttribute('aria-current'), 'page');
+  assert.equal(await evaluate(() => [...document.querySelectorAll('nav[aria-label="个人偏好"] button')].find(button => button.textContent === '外观')?.getAttribute('aria-current')), 'page');
   result.checks.push('restricted settings route redirected');
-  await nav.getByRole('button', { name: '快捷键', exact: true }).click();
+  const clickPreference = name => evaluate(name => {
+    const button = [...document.querySelectorAll('nav[aria-label="个人偏好"] button')].find(button => button.textContent === name);
+    if (!button) throw new Error('Missing preference button: ' + name);
+    button.click();
+  }, name);
+  await clickPreference('快捷键');
   await delay(2000);
   await capture('03-keyboard.png');
-  await nav.getByRole('button', { name: '归档对话', exact: true }).click();
+  await clickPreference('归档对话');
   await delay(2000);
   await capture('04-archive.png');
   assert.deepEqual(errors, [], 'renderer exceptions');
