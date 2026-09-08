@@ -64,6 +64,18 @@ jobs:
             Write-Output "::error::$detail"
             exit $smokeExit
           }
+      - name: Upload small validation report
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: TEENet-Codex-preview-validation
+          path: |
+            C:/te-out/smoke/
+            C:/te-out/smoke.log
+            C:/te-out/SHA256SUMS.txt
+            C:/te-out/enterprise-build.json
+          if-no-files-found: warn
+          retention-days: 14
       - name: Upload preview package and validation
         if: always()
         uses: actions/upload-artifact@v7

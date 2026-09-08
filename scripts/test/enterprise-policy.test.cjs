@@ -48,6 +48,13 @@ test('removing a blocked menu item preserves adjacent chat and voice actions', (
   assert.deepEqual(jsx('div', { children: [blocked, voice] }).props.children, [null, voice]);
 });
 
+test('native menus can reference removed commands without resolving their deleted registry entries', () => {
+  const hidden = policy.blockedMenuItem('settings');
+  assert.deepEqual(hidden, { id: 'settings', label: 'settings', visible: false, enabled: false });
+  assert.equal(policy.commandAllowed(hidden.id), false);
+  assert.equal(policy.blockedMenuItem('keyboardShortcuts'), null);
+});
+
 test('a restricted preference removes its entire field while retaining ordinary voice fields', () => {
   const jsx = policy.createJsxGuard((type, props) => ({ type, props }));
   const label = jsx('FormattedMessage', { id: 'settings.general.realtimeVoiceScreenContext.label' });

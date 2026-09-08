@@ -51,6 +51,9 @@
   function commandAllowed(id) {
     return typeof id !== 'string' || (!blockedCommands.has(id) && !/^(?:git\.|environmentAction\d+$)/.test(id));
   }
+  function blockedMenuItem(id) {
+    return commandAllowed(id) ? null : { id, label: id, visible: false, enabled: false };
+  }
   function routeAllowed(input) {
     if (typeof input !== 'string') return false;
     let route;
@@ -157,5 +160,5 @@
       return element;
     };
   }
-  return Object.freeze({ disabledGates, disabledFeatures, removedPlugins, approvedBundledPlugins, blockedNativeHandlers, preferences, reason, commandAllowed, routeAllowed, requestDenial, internalRequestDenial, messageDenial, applyFeaturePolicy, applyGatePolicy, appServerArgs, hiddenMessageId, markHiddenText, createJsxGuard });
+  return Object.freeze({ disabledGates, disabledFeatures, removedPlugins, approvedBundledPlugins, blockedNativeHandlers, preferences, reason, commandAllowed, blockedMenuItem, routeAllowed, requestDenial, internalRequestDenial, messageDenial, applyFeaturePolicy, applyGatePolicy, appServerArgs, hiddenMessageId, markHiddenText, createJsxGuard });
 });

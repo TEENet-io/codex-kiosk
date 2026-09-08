@@ -110,6 +110,7 @@ export function patchExtractedBundle(root) {
     }
     if (rel === '.vite/build/main-C8eoOzMw.js') {
       source = 'const _teenetPolicy=require("../../teenet/policy.cjs");\n' + source;
+      source = replaceExact(source, 'k=(e,t)=>{let r=n.Ut({commandId:e});', 'k=(e,t)=>{const hidden=_teenetPolicy.blockedMenuItem(e);if(hidden)return hidden;let r=n.Ut({commandId:e});', 'native menu references to removed commands');
       source = replaceExact(source, 'function Tr(){return xr}', 'function Tr(){return _teenetPolicy.applyFeaturePolicy(xr)}', 'desktop feature reader');
       source = replaceExact(source, 'function Or(e){', 'function Or(e){e=_teenetPolicy.applyFeaturePolicy(e);', 'desktop feature updates');
       // The old browser reconciliation deletes MCP settings when capabilities

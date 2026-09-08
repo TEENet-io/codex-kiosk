@@ -96,6 +96,7 @@ try {
   await page.screenshot({ path: path.join(output, '04-archive.png') });
   result.screenshots.push('04-archive.png');
   assert.deepEqual(errors, [], 'renderer exceptions');
+  assert.ok(!/Uncaught Exception|JavaScript error occurred in the main process/.test(fs.readFileSync(path.join(output, 'desktop.log'), 'utf8')), 'no main process exceptions');
   result.checks.push('no renderer exceptions during preference navigation');
   const after = fs.readFileSync(path.join(home, 'config.toml'), 'utf8');
   assert.ok(after.includes('model_provider = "preview"'), 'provider preserved');
@@ -104,6 +105,7 @@ try {
   result.pass = true;
 } catch (error) {
   result.error = error.stack || String(error);
+  result.desktopLogTail = fs.readFileSync(path.join(output, 'desktop.log'), 'utf8').slice(-12000);
   process.exitCode = 1;
 } finally {
   if (browser) await browser.close().catch(() => {});
