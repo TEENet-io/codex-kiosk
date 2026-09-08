@@ -37,7 +37,7 @@ await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
 const port = server.address().port;
 await new Promise(resolve => server.close(resolve));
 const log = fs.openSync(path.join(output, 'desktop.log'), 'w');
-const child = spawn(path.join(root, '_internal/app/ChatGPT.exe'), ['--remote-debugging-port=' + port, '--remote-debugging-address=127.0.0.1', '--user-data-dir=' + path.join(isolated, 'electron')], {
+const child = spawn(path.join(root, '_internal/app/ChatGPT.exe'), ['--remote-debugging-port=' + port, '--remote-debugging-address=127.0.0.1', '--user-data-dir=' + path.join(isolated, 'electron'), '--disable-gpu', '--disable-renderer-backgrounding', '--disable-background-timer-throttling', '--disable-backgrounding-occluded-windows'], {
   cwd: path.join(root, '_internal/app'), windowsHide: false,
   env: { ...process.env, CODEX_HOME: home, CODEX_ELECTRON_USER_DATA_PATH: path.join(isolated, 'electron'), CODEX_OFFLINE_PATCH_DEBUG: '1', CODEX_ELECTRON_ENABLE_WINDOWS_COMPUTER_USE: '0', HTTP_PROXY: 'http://127.0.0.1:9', HTTPS_PROXY: 'http://127.0.0.1:9', NO_PROXY: 'localhost,127.0.0.1', ELECTRON_ENABLE_LOGGING: '1' },
   stdio: ['ignore', log, log],
@@ -70,8 +70,18 @@ try {
   page.on('pageerror', error => errors.push(error.message));
   await page.waitForLoadState('domcontentloaded');
   await delay(8000);
-  await page.screenshot({ path: path.join(output, '01-home.png') });
-  result.screenshots.push('01-home.png');
+  const capture = async name => {
+    // Headless Windows runners can expose an interactive DOM without a
+    // compositor surface. Preserve that distinction in the validation report.
+    fs.writeFileSync(path.join(output, name.replace('.png', '.txt')), await page.locator('body').innerText());
+    try {
+      await page.screenshot({ path: path.join(output, name), timeout: 5000 });
+      result.screenshots.push(name);
+    } catch (error) {
+      (result.screenshotErrors ||= []).push({ name, error: error.message });
+    }
+  };
+  await capture('01-home.png');
   const navigate = async route => {
     await page.evaluate(async route => {
       const app = await import('/assets/app-initial-TxV8Ik1J.js');
@@ -83,27 +93,26 @@ try {
   const nav = page.getByRole('navigation', { name: '个人偏好' });
   assert.deepEqual(await nav.getByRole('button').allTextContents(), ['外观', '语音', '快捷键', '归档对话']);
   result.checks.push('limited preferences navigation');
-  await page.screenshot({ path: path.join(output, '02-appearance.png') });
-  result.screenshots.push('02-appearance.png');
+  await capture('02-appearance.png');
   await navigate('/settings/connections');
   await delay(1500);
   assert.equal(await nav.getByRole('button', { name: '外观', exact: true }).getAttribute('aria-current'), 'page');
   result.checks.push('restricted settings route redirected');
   await nav.getByRole('button', { name: '快捷键', exact: true }).click();
   await delay(2000);
-  await page.screenshot({ path: path.join(output, '03-keyboard.png') });
-  result.screenshots.push('03-keyboard.png');
+  await capture('03-keyboard.png');
   await nav.getByRole('button', { name: '归档对话', exact: true }).click();
   await delay(2000);
-  await page.screenshot({ path: path.join(output, '04-archive.png') });
-  result.screenshots.push('04-archive.png');
+  await capture('04-archive.png');
   assert.deepEqual(errors, [], 'renderer exceptions');
   assert.ok(!/Uncaught Exception|JavaScript error occurred in the main process/.test(fs.readFileSync(path.join(output, 'desktop.log'), 'utf8')), 'no main process exceptions');
+  assert.ok(!fs.readFileSync(path.join(output, 'desktop.log'), 'utf8').includes('plugin_marketplace_add_failed'), 'native bundled marketplace initialized');
   result.checks.push('no renderer exceptions during preference navigation');
   const after = fs.readFileSync(path.join(home, 'config.toml'), 'utf8');
   assert.ok(after.includes('model_provider = "preview"'), 'provider preserved');
   assert.ok(!after.includes('[mcp_servers.node_repl]'), 'no browser MCP persisted');
   result.checks.push('administrator provider preserved');
+  result.visualCapture = result.screenshotErrors?.length ? 'unavailable-on-runner' : 'passed';
   result.pass = true;
 } catch (error) {
   result.error = error.stack || String(error);
