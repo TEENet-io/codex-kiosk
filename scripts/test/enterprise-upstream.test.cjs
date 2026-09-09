@@ -35,6 +35,17 @@ test('Owl CLI uses the permission-profile default without conflicting legacy san
   assert.ok(args.includes('approval_policy="never"'));
   assert.ok(!args.some(value => value.startsWith('sandbox_mode=')));
 });
+
+test('26.901 legacy composer defaults to full access only when server requirements allow it', async () => {
+  const { patchPinnedStartupControls } = await import('../enterprise/patch-bundle.mjs');
+  const fixture = 'function zno({isProjectless:e,requirements:t}){return e&&Ubt(`granular`,t)?`granular`:`auto`};dIi=Xy(Q,(e,{get:t})=>{if(e==null||e!==`local`)return null})';
+  const patched = patchPinnedStartupControls(fixture, 'renderer', '26.901.51231');
+  const select = Function('Ubt', patched.slice(0, patched.indexOf(';dIi=')) + ';return zno')((mode, requirements) => requirements[mode] === true);
+  assert.equal(select({ isProjectless: true, requirements: { 'full-access': true, granular: true } }), 'full-access');
+  assert.equal(select({ isProjectless: false, requirements: { 'full-access': true } }), 'full-access');
+  assert.equal(select({ isProjectless: true, requirements: { 'full-access': false, granular: true } }), 'granular');
+  assert.equal(select({ isProjectless: false, requirements: { 'full-access': false } }), 'auto');
+});
 function walk(node) {
   if (!node || typeof node !== 'object') return;
   if (node.type === 'FunctionDeclaration') functions.set(node.id.name, source.slice(node.start, node.end));

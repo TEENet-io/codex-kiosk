@@ -90,6 +90,7 @@
 | 侧栏原生菜单直接读取子元素 props | 屏蔽操作使用不渲染任何 DOM、也不携带事件的空组件元素，兼容菜单 cloneElement/Slot 接口，避免 null 子元素导致整个首页错误 |
 | 模式/宠物快捷键改名 | 补充 switchToMode1/2、openAvatarOverlay、togglePriorityFilter；屏蔽 Work/Chat 快捷模式及不留历史的 temporaryChat，保留 Codex、普通聊天和语音快捷键 |
 | 权限选择迁移到 permissionProfile | 使用新的 default_permissions 启动覆盖；不与旧 sandbox_mode 同时设置，增加 config/read 有效值及首页 Full access 断言 |
+| 权限界面仍保留旧选择逻辑 | rollout 未开启时旧 composer 忽略 CLI 默认权限；调整其新聊天默认选择为 full-access，并先检查服务器 requirements 是否允许，不修改或绕过管理员权限限制 |
 | 新增浏览器能力 | 关闭 browserExtensions、browserSettingsCloudSync、browserUseTinysky、inAppBrowserUseHistory、cuaPIP 等 |
 | 全功能离线构建主动启用高级功能 | 企业构建使用 `--enterprise`，跳过浏览器/Computer Use、工作环境和 Activity 入口启用逻辑；保留必要的独立启动、办公插件、离线查询、模型和归档兼容 |
 | Windows 界面测试使用旧模块导出 | 更新测试入口，并增加语音和受控插件页面检查 |
@@ -132,6 +133,7 @@ ai-env-mgr 相关代码位于 `/root/pp_home/windows-pc/ai-env-mgr`。本次任�
 - 第三次新版验收运行：静默安装及生产启动通过，首页发现原生菜单对子元素的新要求；已增加空组件兼容及首页错误页断言，页面验收待重跑：<https://github.com/TEENet-io/codex-kiosk/actions/runs/34317578874>。
 - 第四次运行自动检查与六张截图均通过；人工复核发现新版快捷键别名和权限档案默认值遗漏，已补充修复及验收断言，最终交付需使用下一轮产物：<https://github.com/TEENet-io/codex-kiosk/actions/runs/34318409339>。
 - 第五次运行 CLI 有效权限配置和生产启动通过；桌面测试在冷启动页面尚空白时提前断言，改为有限时等待首页和权限数据就绪，保留 Full access 及错误页断言：<https://github.com/TEENet-io/codex-kiosk/actions/runs/34319258116>。
+- 第六次运行确认页面加载后旧权限界面仍默认 Ask for approval；定位到 composer 独立默认选择，已补齐受服务器 requirements 约束的 full-access 默认值和回归测试：<https://github.com/TEENet-io/codex-kiosk/actions/runs/34320066012>。
 - 桌面检查：生产程序直接启动、静默安装、管理员配置保留、首页、精简偏好、受限设置重定向、快捷键、归档、语音、受控插件及异常日志。
 - 截图测试仅修改临时安装副本以启用 DevTools；分发的安装器和 ZIP 保持生产配置。
 

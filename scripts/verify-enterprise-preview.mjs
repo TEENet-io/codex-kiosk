@@ -45,6 +45,7 @@ assert.ok((current ? read('webview/assets/app-primary-428a0a65766f.js') : render
 assert.ok(renderer.includes('teenet:full-access-no-setup'));
 if (current) {
   verifyRuntimePaths(root);
+  assert.ok(renderer.includes('teenet:default-full-access'), 'legacy composer default follows enterprise full access');
   const primary = read('webview/assets/app-primary-428a0a65766f.js');
   const surfaces = renderer + primary;
   for (const name of ['codex-only-startup', 'codex-only-selector', 'codex-only-transition', 'local-tasks-only-composer', 'cloud-task-schema-disabled', 'cloud-task-runtime-blocked', 'cloud-task-list-disabled', 'cloud-task-detail-disabled', 'offline-query-network-mode', 'offline-mutation-network-mode', 'model-id-display-name-fallback', 'archived-threads-cache-fallback']) {

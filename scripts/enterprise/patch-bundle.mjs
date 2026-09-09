@@ -50,6 +50,9 @@ export function patchPinnedStartupControls(source, kind, version = '26.810.52044
     return replaceExact(source, 'async getState(){let e=await this.getService();e.start();', 'async getState(){return this.deviceState;/*teenet:no-micro-hardware*/let e=await this.getService();e.start();', 'optional USB controller discovery');
   }
   if (version === '26.901.51231') {
+    // The legacy composer remains active while permission-selection rollout
+    // is off. It otherwise ignores the CLI profile default for new chats.
+    source = replaceExact(source, 'function zno({isProjectless:e,requirements:t}){return e&&Ubt(`granular`,t)?`granular`:`auto`}', 'function zno({isProjectless:e,requirements:t}){return Ubt(`full-access`,t)?`full-access`:e&&Ubt(`granular`,t)?`granular`:`auto`/*teenet:default-full-access*/}', 'legacy composer full-access default');
     return replaceExact(source, 'dIi=Xy(Q,(e,{get:t})=>{if(e==null||e!==`local`)', 'dIi=Xy(Q,(e,{get:t})=>{return uIi;/*teenet:full-access-no-setup*/if(e==null||e!==`local`)', 'Windows sandbox setup requirement');
   }
   source = replaceExact(source, 'function cNc(e){let t=(0,lNc.c)(26)', 'function cNc(e){return null;/*teenet:no-model-promotion*/let t=(0,lNc.c)(26)', 'model promotion modal');
