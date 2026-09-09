@@ -353,9 +353,10 @@ try {
         const x = rect.x + rect.width / 2, y = rect.y + rect.height / 2;
         window.__codexReturnClicks = 0;
         button.addEventListener('click', () => window.__codexReturnClicks++);
-        return { x: Math.round(x * devicePixelRatio), y: Math.round(y * devicePixelRatio), region: getComputedStyle(button).getPropertyValue('-webkit-app-region'), hit: document.elementFromPoint(x, y)?.outerHTML?.slice(0, 250) };
+        return { x: Math.round(x * devicePixelRatio), y: Math.round(y * devicePixelRatio), width: Math.round(innerWidth * devicePixelRatio), height: Math.round(innerHeight * devicePixelRatio), region: getComputedStyle(button).getPropertyValue('-webkit-app-region'), hit: document.elementFromPoint(x, y)?.outerHTML?.slice(0, 250) };
       });
-      const native = execFileSync('powershell.exe', ['-NoProfile', '-File', path.resolve('scripts/test/click-window-client.ps1'), '-TargetProcessId', String(child.pid), '-ClientX', String(point.x), '-ClientY', String(point.y)], { encoding: 'utf8', timeout: 15000 });
+      const native = execFileSync('powershell.exe', ['-NoProfile', '-File', path.resolve('scripts/test/click-window-client.ps1'), '-TargetProcessId', String(child.pid), '-ClientX', String(point.x), '-ClientY', String(point.y), '-ClientWidth', String(point.width), '-ClientHeight', String(point.height)], { encoding: 'utf8', timeout: 15000 });
+      result.lastNativeReturnClick = { point, native: JSON.parse(native) };
       await delay(2000);
       if (expectReturn) await waitFor(() => !document.querySelector('[data-teenet-preferences]') && !!document.querySelector('[contenteditable="true"]')?.getClientRects().length);
       return { point, native: JSON.parse(native), ...(await evaluate(() => ({ clicked: window.__codexReturnClicks, stillInPreferences: !!document.querySelector('[data-teenet-preferences]'), hasComposer: !!document.querySelector('[contenteditable="true"]') }))) };

@@ -40,10 +40,10 @@ jobs:
       - uses: actions/download-artifact@v8
         with:
           name: Codex-package
-          run-id: 34367229919
+          run-id: 34370298624
           github-token: ${{ github.token }}
           path: C:/te-diagnostic
-      - name: Unpack validated Codex b4
+      - name: Unpack Codex b5 candidate
         shell: pwsh
         run: |
           $zip = Get-ChildItem C:/te-diagnostic -Filter '*-portable.zip' | Select-Object -First 1
@@ -55,14 +55,14 @@ jobs:
           CODEX_TEST_STARTUP_TRACE: '0'
           CODEX_TEST_MODEL_COMMAND_FIX: '0'
           CODEX_TEST_EMPLOYEE_CONFIG: '0'
-          CODEX_TEST_RETURN_DIAG: '1'
+          CODEX_TEST_RETURN_DIAG: '0'
         run: |
           $metadata = Get-ChildItem C:/te-portable -Recurse -Filter enterprise-build.json | Select-Object -First 1
           if (-not $metadata) { throw 'Preview metadata not found' }
           $installer = Get-ChildItem C:/te-diagnostic -Filter '*-setup.exe' | Select-Object -First 1
           if (-not $installer) { throw 'Installer not found' }
           Copy-Item $installer.FullName ($metadata.DirectoryName + '-setup.exe')
-          node scripts/smoke-enterprise-preview.mjs $metadata.DirectoryName C:/te-report '${{ matrix.auth }}' empty-zh
+          node scripts/smoke-enterprise-preview.mjs $metadata.DirectoryName C:/te-report '${{ matrix.auth }}' pet-zh
       - uses: actions/upload-artifact@v7
         if: always()
         with:
