@@ -276,15 +276,21 @@ try {
     result.checks.push('focused composer slash command without recursive updates');
     if (customCatalog) {
       const chooseModel = async (from, to) => {
-        await evaluate(name => {
+        const point = await evaluate(name => {
           const button = [...document.querySelectorAll('button')].find(button => button.textContent.includes(name));
           if (!button) throw new Error('Missing model picker: ' + name);
-          button.click();
+          const box = button.getBoundingClientRect();
+          return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
         }, from);
-        await waitFor(() => [...document.querySelectorAll('[role="menuitem"], [role="option"]')].some(item => /Devstral|Kimi/.test(item.textContent)));
+        await send('Input.dispatchMouseEvent', { type: 'mousePressed', ...point, button: 'left', clickCount: 1 });
+        await send('Input.dispatchMouseEvent', { type: 'mouseReleased', ...point, button: 'left', clickCount: 1 });
+        await waitFor(() => document.querySelector('[data-model-picker-model-row]') || [...document.querySelectorAll('[role^="menuitem"], [role="option"]')].some(item => /Devstral|Kimi/.test(item.textContent)));
+        // The retained legacy picker nests model choices below reasoning.
+        await evaluate(() => document.querySelector('[data-model-picker-model-row]')?.closest('[role^="menuitem"]')?.click());
+        await waitFor(() => [...document.querySelectorAll('[role^="menuitem"], [role="option"]')].some(item => /Devstral|Kimi/.test(item.textContent)));
         await capture('01-model-picker.png');
         await evaluate(name => {
-          const item = [...document.querySelectorAll('[role="menuitem"], [role="option"]')].find(item => item.textContent.includes(name));
+          const item = [...document.querySelectorAll('[role^="menuitem"], [role="option"]')].find(item => item.textContent.includes(name));
           if (!item) throw new Error('Missing model option: ' + name);
           item.click();
         }, to);
