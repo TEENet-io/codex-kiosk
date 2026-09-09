@@ -2,7 +2,7 @@
 
 本文件记录企业精简版已实现的改动、保留能力、对应代码及尚未完成的集成项。需求依据为 2026-09-08 TEENet 周会；最近更新：2026-09-09。
 
-当前候选：`26.901.51231-b5`，修复偏好页“返回对话”的 Windows 鼠标命中问题，并恢复宠物入口、快捷键、悬浮窗和启动恢复，新包验证待完成。此前清理旧 `.codex` 后的启动恢复与本次按钮修复分开记录；沿用 Codex 名称与安装位置。b3 的宠物隔离仅为历史记录，b5 恢复上方功能表中的宠物能力。详见[原生点击对照](enterprise-preview.md#2026-09-09-偏好页返回按钮的原生点击)。尚未通过 ai-env-mgr 发布到员工机队。
+当前候选：`26.901.51231-b5`，修复偏好页“返回对话”的 Windows 鼠标命中问题，并恢复宠物入口、快捷键、悬浮窗和启动恢复，Windows 构建及中英文安装交互验证完成，下载见第 7 节。此前清理旧 `.codex` 后的启动恢复与本次按钮修复分开记录；沿用 Codex 名称与安装位置。b3 的宠物隔离仅为历史记录，b5 恢复下方功能表中的宠物能力。详见[原生点击对照](enterprise-preview.md#2026-09-09-偏好页返回按钮的原生点击)。尚未通过 ai-env-mgr 发布到员工机队。
 
 ## 1. 版本与构建来源
 
@@ -171,6 +171,21 @@
 ai-env-mgr 相关代码位于 `/root/pp_home/windows-pc/ai-env-mgr`。本次任务未修改该仓库，也未发布机队策略。
 
 ## 7. 验证与交付记录
+
+### Codex 26.901.51231-b5：返回按钮与宠物恢复（2026-09-09）
+
+- 产品提交：`b77f7684b077da0b962fa89e1722651640f5335c`。返回按钮使用 `preferences.js.txt` 中的 `no-drag` 排除 Windows 标题栏拖动命中；`policy.cjs` 恢复宠物路由、命令、菜单和消息；`patch-bundle.mjs` 撤销 b3 对原生窗口恢复、预加载和创建的临时阻断。保留 b2/b4 命令注册修复。
+- [构建 34370298624](https://github.com/TEENet-io/codex-kiosk/actions/runs/34370298624) 完成 Windows 回归、网关构建和测试、包验证、安装与英文交互验收。中文原生返回点击首次失败，保留原失败报告，不把该构建标为全部成功。
+- [同包复测 34371748817](https://github.com/TEENet-io/codex-kiosk/actions/runs/34371748817) 使用测试提交 `bafef49a3c9052d5af1f9a944b2b40b1f602cced`，确认默认 MainWindowHandle 为 327816（451×768 宠物窗），主界面实际为 262548（870×600）。测试 helper 改为按 CDP 视口尺寸唯一匹配窗口，仍使用 Windows 系统鼠标；没有改动分发程序。
+- 复测中文 bearer 场景全部通过：宠物启动恢复、显示/收起、DeepSeek → Kimi → DeepSeek、两次原生返回及继续输入；英文与中文均 `rendererErrors=[]`、`consoleErrors=[]`。两次返回均收到一次点击、离开偏好页并出现输入框，截图已人工查看。配置与已有 Skill 保留。使用合成凭据，未验证真实网关模型请求、语音通话或完整员工历史状态。
+- [下载 b5 包](https://nightly.link/TEENet-io/codex-kiosk/actions/artifacts/10112174156.zip)（约 1.39 GB，保留 14 天）；解压运行 `codex-only-local-26.901.51231-b5-setup.exe`。退出 Codex 后安装到当前程序目录，无须清空 `.codex`。没有创建正式 Release 或发布员工机队。
+- [构建验收报告](https://nightly.link/TEENet-io/codex-kiosk/actions/artifacts/10112131507.zip)包含英文通过与中文首次失败；[中文复测报告](https://nightly.link/TEENet-io/codex-kiosk/actions/artifacts/10112386850.zip)全部通过，保留 7 天。
+
+| 文件 | SHA-256 |
+| --- | --- |
+| `codex-only-local-26.901.51231-b5-setup.exe` | `847d9b2c006fe199d136b7209dbf4eb7e6051803091149065b1e1a3bdb5ab4d0` |
+| `codex-only-local-26.901.51231-b5-portable.zip` | `f7256f3e3589097e3eedd9b7fd5bd964b60e1fb111de01930d78db33a90425d7` |
+| 整个 Actions 下载 ZIP | `d2beda2e44caa382475b1c0435522858ded608cafa70f702079163e136cf2f22` |
 
 ### Codex 26.901.51231-b2：模型命令更新循环（2026-09-09）
 
