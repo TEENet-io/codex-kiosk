@@ -274,6 +274,27 @@ try {
     await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Backspace', code: 'Backspace', windowsVirtualKeyCode: 8 });
     await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Backspace', code: 'Backspace', windowsVirtualKeyCode: 8 });
     result.checks.push('focused composer slash command without recursive updates');
+    if (customCatalog) {
+      const chooseModel = async (from, to) => {
+        await evaluate(name => {
+          const button = [...document.querySelectorAll('button')].find(button => button.textContent.includes(name));
+          if (!button) throw new Error('Missing model picker: ' + name);
+          button.click();
+        }, from);
+        await waitFor(() => [...document.querySelectorAll('[role="menuitem"], [role="option"]')].some(item => /Devstral|Kimi/.test(item.textContent)));
+        await capture('01-model-picker.png');
+        await evaluate(name => {
+          const item = [...document.querySelectorAll('[role="menuitem"], [role="option"]')].find(item => item.textContent.includes(name));
+          if (!item) throw new Error('Missing model option: ' + name);
+          item.click();
+        }, to);
+        await delay(2000);
+        assert.ok(await evaluate(name => [...document.querySelectorAll('button')].some(button => button.textContent.includes(name)), to), 'selected model shown in composer');
+      };
+      await chooseModel('DeepSeek V3.2', 'Kimi K2.5');
+      await chooseModel('Kimi K2.5', 'DeepSeek V3.2');
+      result.checks.push('model picker switches between employee models without recursive updates');
+    }
   }
   const navigate = async route => {
     await evaluate(async ({ route, current }) => {
