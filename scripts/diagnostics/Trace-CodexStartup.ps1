@@ -27,7 +27,7 @@ try {
     $patchedHash = (Get-FileHash -LiteralPath $init -Algorithm SHA256).Hash
     $env:CODEX_STARTUP_TRACE_FILE = $report
     Write-Host 'Codex will open with its existing settings and history.'
-    Write-Host 'When the error appears, click Retry once, then close Codex completely.'
+    Write-Host 'Wait 15 seconds after Codex opens. Click Retry once, then close Codex completely.'
     Write-Host 'The trace stops automatically after two minutes. No tokens or chat contents are collected.'
     $child = Start-Process -FilePath $exe -WorkingDirectory $appRoot -PassThru
     $child.WaitForExit()

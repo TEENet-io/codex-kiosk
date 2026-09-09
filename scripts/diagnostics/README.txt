@@ -6,7 +6,7 @@ Codex 26.901 startup trace
    Default install: C:\Users\<user>\Codex.
    For another installation, run:
    Trace-CodexStartup.cmd -InstallDir "C:\Tools\Codex"
-4. When the error appears, click Retry once, then close Codex completely.
+4. Wait 15 seconds after Codex opens. Click Retry once, then close Codex completely.
 5. Send the startup-trace.jsonl in the new report-* directory.
 
 This is a diagnostic tool, not a fix or a new installer.

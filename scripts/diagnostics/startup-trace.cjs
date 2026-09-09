@@ -15,7 +15,7 @@ function safeFrame(frame) {
   };
 }
 
-function attachTrace(contents, write, durationMs = 120000) {
+function attachTrace(contents, write, durationMs = 120000, onReady = () => {}) {
   const connection = contents.debugger;
   let exceptions = 0;
   let stopped = false;
@@ -45,7 +45,7 @@ function attachTrace(contents, write, durationMs = 120000) {
   catch { write({ event: 'attach-failed', window: contents.id }); return stop; }
   send('Debugger.enable')
     .then(() => send('Debugger.setPauseOnExceptions', { state: 'all' }))
-    .then(() => { write({ event: 'trace-ready', window: contents.id }); })
+    .then(() => { write({ event: 'trace-ready', window: contents.id }); onReady(); })
     .catch(stop);
   timer = setTimeout(stop, durationMs);
   timer.unref?.();
@@ -63,11 +63,20 @@ if (process.versions.electron && process.env.CODEX_STARTUP_TRACE_FILE) {
   write({ event: 'trace-loaded', electron: process.versions.electron });
   app.on('web-contents-created', (_event, contents) => {
     if (contents.getType() !== 'window') return;
-    attachTrace(contents, write);
-    if (process.env.CODEX_STARTUP_TRACE_SELFTEST === '1') {
-      contents.once('did-finish-load', () => {
-        contents.executeJavaScript('(function codexStartupTraceProbe(){try{throw new Error("")}catch{}})()').catch(() => {});
-      });
-    }
+    // Pause-on-exception during module initialization changes the behavior of
+    // this Owl runtime's CSP/eval feature probes. Let startup finish first,
+    // then capture the user's Retry on the already-loaded application.
+    contents.once('did-finish-load', () => {
+      const pending = setTimeout(() => {
+        if (contents.isDestroyed()) return;
+        attachTrace(contents, write, 120000, () => {
+          if (process.env.CODEX_STARTUP_TRACE_SELFTEST === '1') {
+            contents.executeJavaScript('(function codexStartupTraceProbe(){try{throw new Error("")}catch{}})()').catch(() => {});
+          }
+        });
+      }, 10000);
+      pending.unref?.();
+      contents.once('destroyed', () => clearTimeout(pending));
+    });
   });
 }

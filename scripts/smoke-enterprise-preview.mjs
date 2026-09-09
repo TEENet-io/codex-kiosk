@@ -84,7 +84,7 @@ if (diagnosticAuth && process.env.CODEX_TEST_STARTUP_TRACE === '1') {
   process.env.CODEX_STARTUP_TRACE_SELFTEST = '1';
 }
 const bootstrapRoot = path.join(output, 'production-bootstrap');
-execFileSync(process.execPath, [path.resolve('scripts/offline-direct-launch-smoke.mjs'), '--portable-root', root, '--work-root', bootstrapRoot, '--timeout-ms', '15000'], { stdio: 'inherit' });
+execFileSync(process.execPath, [path.resolve('scripts/offline-direct-launch-smoke.mjs'), '--portable-root', root, '--work-root', bootstrapRoot, '--timeout-ms', process.env.CODEX_TEST_STARTUP_TRACE === '1' ? '25000' : '15000'], { stdio: 'inherit' });
 const bootstrap = JSON.parse(fs.readFileSync(path.join(bootstrapRoot, 'result.json'), 'utf8'));
 assert.equal(bootstrap.pass, true, 'unchanged production executable startup');
 if (process.env.CODEX_TEST_STARTUP_TRACE === '1') {
