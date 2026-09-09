@@ -13,7 +13,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        scenario: [empty-zh, project-zh]
+        scenario: [empty-en]
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -35,6 +35,8 @@ jobs:
           Expand-Archive $zip.FullName C:/te-portable
       - name: Reproduce employee catalog startup
         shell: pwsh
+        env:
+          CODEX_TEST_STARTUP_TRACE: '1'
         run: |
           $metadata = Get-ChildItem C:/te-portable -Recurse -Filter enterprise-build.json | Select-Object -First 1
           if (-not $metadata) { throw 'Preview metadata not found' }

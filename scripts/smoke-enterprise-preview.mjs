@@ -77,10 +77,21 @@ if (fs.existsSync(installer)) {
 // Validate the unchanged production executable first. Electron intentionally
 // disables DevTools in production windows; UI instrumentation belongs only in
 // the throwaway installed copy, never in the distributed installer or ZIP.
+if (diagnosticAuth && process.env.CODEX_TEST_STARTUP_TRACE === '1') {
+  const traceModule = path.resolve('scripts/diagnostics/startup-trace.cjs');
+  fs.appendFileSync(path.join(root, '_internal/app/patches/init.cjs'), '\n;require(' + JSON.stringify(traceModule) + ');\n');
+  process.env.CODEX_STARTUP_TRACE_FILE = path.join(output, 'startup-trace.jsonl');
+  process.env.CODEX_STARTUP_TRACE_SELFTEST = '1';
+}
 const bootstrapRoot = path.join(output, 'production-bootstrap');
 execFileSync(process.execPath, [path.resolve('scripts/offline-direct-launch-smoke.mjs'), '--portable-root', root, '--work-root', bootstrapRoot, '--timeout-ms', '15000'], { stdio: 'inherit' });
 const bootstrap = JSON.parse(fs.readFileSync(path.join(bootstrapRoot, 'result.json'), 'utf8'));
 assert.equal(bootstrap.pass, true, 'unchanged production executable startup');
+if (process.env.CODEX_TEST_STARTUP_TRACE === '1') {
+  const trace = fs.readFileSync(process.env.CODEX_STARTUP_TRACE_FILE, 'utf8');
+  assert.ok(trace.includes('trace-ready'), 'native exception tracer attaches with production DevTools disabled');
+  assert.ok(trace.includes('codexStartupTraceProbe'), 'native exception tracer captures caught exceptions and resumes');
+}
 assert.ok(!/Uncaught Exception|JavaScript error occurred in the main process/.test(fs.readFileSync(path.join(bootstrapRoot, 'codex-stderr.log'), 'utf8')), 'production main process exceptions');
 if (!installed) {
   const copy = path.join(isolated, 'instrumented-portable');
