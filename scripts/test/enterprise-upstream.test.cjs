@@ -21,6 +21,20 @@ test('hidden sidebar actions preserve the new native context-menu child element 
   const voice = jsx('button', { children: 'Voice', onClick() {} });
   assert.equal(jsx('nav', { children: [action, voice] }).props.children[1], voice, 'adjacent normal action survives');
 });
+
+test('26.901 command aliases cannot reopen Work, pet, activity or uncollected temporary chats', () => {
+  const policy = require('../enterprise/policy.cjs');
+  for (const id of ['switchToMode1', 'switchToMode2', 'openAvatarOverlay', 'togglePriorityFilter', 'temporaryChat', 'quickChat', 'focusQuickChat']) assert.equal(policy.commandAllowed(id), false, id);
+  for (const id of ['switchToMode3', 'newTask', 'keyboardShortcuts', 'globalDictationHold']) assert.equal(policy.commandAllowed(id), true, id);
+});
+
+test('Owl CLI uses the permission-profile default without conflicting legacy sandbox overrides', () => {
+  const policy = require('../enterprise/policy.cjs');
+  const args = policy.appServerArgs(['app-server'], {}, { permissionProfiles: true });
+  assert.ok(args.includes('default_permissions=":danger-full-access"'));
+  assert.ok(args.includes('approval_policy="never"'));
+  assert.ok(!args.some(value => value.startsWith('sandbox_mode=')));
+});
 function walk(node) {
   if (!node || typeof node !== 'object') return;
   if (node.type === 'FunctionDeclaration') functions.set(node.id.name, source.slice(node.start, node.end));

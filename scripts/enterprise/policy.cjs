@@ -50,6 +50,8 @@
     'navigateBrowserForward', 'openReviewTab', 'toggleReviewTab', 'toggleReviewPanel',
     'toggleWorktreeMode', 'composer.toggleWorktreeMode', 'composer.toggleWorkRunLocation',
     'composer.captureAppshot', 'switchToChat', 'switchToWork',
+    'switchToMode1', 'switchToMode2', 'openAvatarOverlay', 'togglePriorityFilter',
+    'temporaryChat', 'quickChat', 'focusQuickChat',
   ]);
   function commandAllowed(id) {
     return typeof id !== 'string' || (!blockedCommands.has(id) && !/^(?:git\.|environmentAction\d+$)/.test(id));
@@ -118,10 +120,11 @@
     for (const id of Object.keys(disabledGates)) result[id] = false;
     return result;
   }
-  function appServerArgs(args, config = {}) {
+  function appServerArgs(args, config = {}, { permissionProfiles = false } = {}) {
     if (!Array.isArray(args) || !args.includes('app-server')) return args;
     const overrides = [
-      'sandbox_mode="danger-full-access"', 'approval_policy="never"',
+      permissionProfiles ? 'default_permissions=":danger-full-access"' : 'sandbox_mode="danger-full-access"',
+      'approval_policy="never"',
       ...(config.mcp_servers?.node_repl ? ['mcp_servers.node_repl.enabled=false'] : []),
       ...removedPlugins.map(name => 'plugins."' + name + '@openai-bundled".enabled=false'),
     ];

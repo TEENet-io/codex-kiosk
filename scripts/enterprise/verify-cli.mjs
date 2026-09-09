@@ -9,12 +9,13 @@ const require = createRequire(import.meta.url);
 const policy = require('./policy.cjs');
 
 export async function verifyCli(executable) {
+  const permissionProfiles = fs.existsSync(path.resolve(path.dirname(executable), '..', 'owl-shell-runtime.json'));
   for (const existing of ['', '[mcp_servers.node_repl]\nurl="http://127.0.0.1:9/mcp"\n', '[mcp_servers.node_repl]\ncommand="node"\nargs=["--version"]\n']) {
     const home = fs.mkdtempSync(path.join(os.tmpdir(), 'teenet-cli-'));
     let child;
     try {
       fs.writeFileSync(path.join(home, 'config.toml'), existing);
-      child = spawn(executable, policy.appServerArgs(['app-server'], parse(existing)), { env: { ...process.env, CODEX_HOME: home }, windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });
+      child = spawn(executable, policy.appServerArgs(['app-server'], parse(existing), { permissionProfiles }), { env: { ...process.env, CODEX_HOME: home }, windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });
       await new Promise((resolve, reject) => {
         let output = '', errors = '';
         const timer = setTimeout(() => reject(new Error('CLI initialization timed out: ' + errors)), 15000);
@@ -29,7 +30,20 @@ export async function verifyCli(executable) {
             const line = output.slice(0, end); output = output.slice(end + 1);
             let response;
             try { response = JSON.parse(line); } catch { continue; }
-            if (response.id === 1) finish(response.error ? new Error(JSON.stringify(response.error)) : null);
+            if (response.error) { finish(new Error(JSON.stringify(response.error))); return; }
+            if (response.id === 1) {
+              child.stdin.write(JSON.stringify({ method: 'initialized', params: {} }) + '\n');
+              child.stdin.write(JSON.stringify({ id: 2, method: 'config/read', params: { includeLayers: false } }) + '\n');
+            }
+            if (response.id === 2) {
+              try {
+                const config = response.result.config;
+                assert.equal(config.approval_policy, 'never', 'effective CLI approval default');
+                if (permissionProfiles) assert.equal(config.default_permissions, ':danger-full-access', 'effective CLI permission profile');
+                else assert.equal(config.sandbox_mode, 'danger-full-access');
+                finish();
+              } catch (error) { finish(error); }
+            }
           }
         });
         child.stdin.on('error', finish);

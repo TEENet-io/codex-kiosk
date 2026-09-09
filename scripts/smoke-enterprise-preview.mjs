@@ -166,6 +166,7 @@ try {
   await capture('01-home.png');
   const homeText = await evaluate(() => document.body.innerText);
   assert.ok(!/ChatGPT hit a snag|Something went wrong\. Try again|Update ChatGPT/.test(homeText), 'home rendered without an application error boundary');
+  assert.ok(/Full access|完整访问/.test(homeText), 'new chat uses full access by default');
   assert.ok(!/^Scheduled$/m.test(homeText), 'scheduled navigation removed');
   assert.ok(!homeText.includes('Finish Windows setup'), 'full-access chat does not require environment setup');
   assert.ok(!homeText.includes('Introducing GPT-'), 'model promotion removed');
@@ -193,6 +194,8 @@ try {
   await clickPreference('快捷键');
   await delay(2000);
   await capture('03-keyboard.png');
+  const keyboardText = await evaluate(() => document.body.innerText);
+  assert.ok(!/Switch to Work|Switch to Chat|Show or hide pet|Toggle activity view|New Temporary Chat|切换到 Work|显示或隐藏宠物/.test(keyboardText), 'advanced command aliases absent from keyboard settings');
   await clickPreference('归档对话');
   await delay(2000);
   await capture('04-archive.png');

@@ -43,7 +43,7 @@
 | 快捷键 | 保留普通快捷键与查看页面 | 删除受限功能对应的命令；保留新建对话、模型选择、语音等正常操作 |
 | 语音 | 保留 | 保留语音页面与快捷键；隐藏屏幕上下文等高级控制选项；真实语音服务仍需员工环境联调 |
 | 外观 | 保留 | 精简页面可访问；配置类的主题导入导出隐藏 |
-| 默认权限 | 预设完整访问 | app-server 启动参数设置 `sandbox_mode="danger-full-access"`、`approval_policy="never"`；跳过不适用的 Windows 沙箱安装向导 |
+| 默认权限 | 预设完整访问 | 26.901 app-server 使用 `default_permissions=":danger-full-access"`、`approval_policy="never"`，兼容新版权限档案及前端默认选择；旧版使用 legacy sandbox 参数。验证 CLI 有效配置和首页权限，不改管理员配置文件 |
 | 对话 / 项目 | 保留本地 Codex 模式 | 保留会话、项目、普通文件与终端能力；限制切换到 Work/Chat 与云任务创建/查询 |
 | 模型切换 | 保留 | 默认模型读取现有管理员配置；修复自定义模型名称回退及模型可用性兼容；不擅自替换企业默认模型 |
 | 插件页 | 保留但受控 | 员工不能安装/卸载插件、添加市场、分享管理插件；原生启动仅能从可信内置市场安装允许的插件 |
@@ -88,6 +88,8 @@
 | MSIX 运行时路径 | 规范化 `%40` 作用域目录及 Statsig 文件名，移除 Computer Use 专用的 cua/sky/browser-desktop 依赖；保留 Node、npm 和普通办公依赖，验证安装目标路径长度 |
 | Owl 拆分 Electron 运行时 | 新版完整性 fuse 位于 `chrome.dll`，主 EXE 仅为启动器；更新打包时的 ASAR fuse 处理并验证结果，未知布局直接构建失败，见 [desktop-runtime-fuses.mjs](../scripts/desktop-runtime-fuses.mjs) |
 | 侧栏原生菜单直接读取子元素 props | 屏蔽操作使用不渲染任何 DOM、也不携带事件的空组件元素，兼容菜单 cloneElement/Slot 接口，避免 null 子元素导致整个首页错误 |
+| 模式/宠物快捷键改名 | 补充 switchToMode1/2、openAvatarOverlay、togglePriorityFilter；屏蔽 Work/Chat 快捷模式及不留历史的 temporaryChat，保留 Codex、普通聊天和语音快捷键 |
+| 权限选择迁移到 permissionProfile | 使用新的 default_permissions 启动覆盖；不与旧 sandbox_mode 同时设置，增加 config/read 有效值及首页 Full access 断言 |
 | 新增浏览器能力 | 关闭 browserExtensions、browserSettingsCloudSync、browserUseTinysky、inAppBrowserUseHistory、cuaPIP 等 |
 | 全功能离线构建主动启用高级功能 | 企业构建使用 `--enterprise`，跳过浏览器/Computer Use、工作环境和 Activity 入口启用逻辑；保留必要的独立启动、办公插件、离线查询、模型和归档兼容 |
 | Windows 界面测试使用旧模块导出 | 更新测试入口，并增加语音和受控插件页面检查 |
@@ -128,6 +130,7 @@ ai-env-mgr 相关代码位于 `/root/pp_home/windows-pc/ai-env-mgr`。本次任�
 - 首次新版验收运行（安装失败，非交付版本）：<https://github.com/TEENet-io/codex-kiosk/actions/runs/34316082790>。
 - 第二次新版验收运行（安装成功、启动失败，非交付版本）：<https://github.com/TEENet-io/codex-kiosk/actions/runs/34316766914>。
 - 第三次新版验收运行：静默安装及生产启动通过，首页发现原生菜单对子元素的新要求；已增加空组件兼容及首页错误页断言，页面验收待重跑：<https://github.com/TEENet-io/codex-kiosk/actions/runs/34317578874>。
+- 第四次运行自动检查与六张截图均通过；人工复核发现新版快捷键别名和权限档案默认值遗漏，已补充修复及验收断言，最终交付需使用下一轮产物：<https://github.com/TEENet-io/codex-kiosk/actions/runs/34318409339>。
 - 桌面检查：生产程序直接启动、静默安装、管理员配置保留、首页、精简偏好、受限设置重定向、快捷键、归档、语音、受控插件及异常日志。
 - 截图测试仅修改临时安装副本以启用 DevTools；分发的安装器和 ZIP 保持生产配置。
 

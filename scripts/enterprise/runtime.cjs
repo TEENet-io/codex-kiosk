@@ -14,7 +14,8 @@ cp.spawn = function (file, args, options) {
     const home = env.CODEX_HOME || path.join(env.USERPROFILE || os.homedir(), '.codex');
     const configPath = path.join(home, 'config.toml');
     const config = fs.existsSync(configPath) ? parse(fs.readFileSync(configPath, 'utf8')) : {};
-    args = policy.appServerArgs(args, config);
+    const permissionProfiles = fs.existsSync(path.resolve(path.dirname(file), '..', 'owl-shell-runtime.json'));
+    args = policy.appServerArgs(args, config, { permissionProfiles });
   }
   return originalSpawn.call(this, file, args, options);
 };

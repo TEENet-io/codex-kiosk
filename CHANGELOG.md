@@ -7,6 +7,7 @@
 - 规范化 MSIX 编码的 Node 模块路径，移除 Computer Use 专用依赖并检查安装目标长度，解决 Windows 安装回滚。
 - 适配 Owl 将 Electron fuse 移至 chrome.dll 的布局，修复重打 ASAR 后启动时的完整性校验崩溃；增加构建验证，未知运行时布局不再静默跳过。
 - 屏蔽操作保持新版侧栏原生菜单所需的子元素接口，修复首页 null props 错误；桌面测试增加错误页断言及渲染异常记录。
+- 补齐新版模式/宠物/Activity 快捷键别名屏蔽，关闭不留历史的临时聊天；完整访问默认值迁移到 permissionProfile，并检查 CLI 有效配置和首页显示。
 
 # Changelog
 
