@@ -339,7 +339,9 @@ try {
   result.checks.push('controlled plugins route without marketplace installation');
   assert.deepEqual(errors, [], 'renderer exceptions');
   assert.ok(!/Uncaught Exception|JavaScript error occurred in the main process/.test(fs.readFileSync(path.join(output, 'desktop.log'), 'utf8')), 'no main process exceptions');
-  assert.ok(!fs.readFileSync(path.join(output, 'desktop.log'), 'utf8').includes('plugin_marketplace_add_failed'), 'native bundled marketplace initialized');
+  const marketplaceLog = fs.readFileSync(path.join(output, 'desktop.log'), 'utf8');
+  assert.ok(marketplaceLog.split('\n').some(line => line.includes('plugin_marketplace_add_succeeded') && /marketplaceName=openai-bundled(?:\s|$)/.test(line)), 'approved native bundled marketplace initialized');
+  assert.ok(!marketplaceLog.split('\n').some(line => line.includes('bundled_plugins_marketplace_add_failed') && /marketplaceName=openai-bundled(?:\s|$)/.test(line)), 'approved native bundled marketplace did not fail');
   assert.ok(!fs.readFileSync(path.join(output, 'desktop.log'), 'utf8').includes('bundled_plugins_marketplace_install_failed'), 'approved bundled plugins installed');
   result.checks.push('no renderer exceptions during preference navigation');
   const after = fs.readFileSync(path.join(home, 'config.toml'), 'utf8');

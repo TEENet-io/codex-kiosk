@@ -41,6 +41,8 @@ node scripts/smoke-enterprise-preview.mjs dist/enterprise-current/codex-only-loc
 
 `composer-registration.test.cjs` 执行保存在 fixture 的实际 `pUr`、`Pas`、`Las` 和 `Ras`，以 store 订阅驱动重渲染；原代码在启用/禁用模型命令两种情况下均超过更新上限，修复后只注册一次，并验证目录刷新、选择回调与卸载。包验证器必须检查新增 marker。Windows 检查新增聚焦输入框并输入 `/model`，不发送模型请求。宠物恢复测试 34338501500 的中英文场景均已通过，但尚不能代替用户实际状态的故障验证。
 
+未修复的 b1 在 34339379263 的中英文 `/model` 检查也没有产生 renderer 异常；原始 Windows 状态仍未完全复现。英文任务最终失败于过宽的市场断言：允许的 `openai-bundled` 已初始化，随后自动下载的 `openai-primary-runtime` 市场被既有策略拒绝。断言改为明确检查允许市场的成功/失败，不放开其他市场、不吞掉其策略拒绝日志。
+
 ### 2026-09-09 员工启动诊断
 
 新日志中的实际路径为 `C:\Users\weipeng\Codex`，CLI 0.153.4 握手、配置读取与模型列表读取成功，但 AppRoutes 在 `app-primary-428a0a65766f.js` 的 `pUr` 重复报空消息 Error。移除旧 notify 配置后仍复现，不能以删除旧 Tools 目录或重新登录作为已确认的解决方案。
