@@ -80,5 +80,5 @@ for (const name of ['Setup Codex.cmd', '_internal/chrome-extension', '_internal/
 for (const name of ['Codex.cmd', 'Codex.vbs']) assert.ok(!/COMPUTER_USE[^\r\n]*[= ]"?1/.test(fs.readFileSync(path.join(root, name), 'utf8')), name);
 assert.ok(fs.statSync(path.join(root, 'block-list.md')).size > 100);
 assert.ok(fs.existsSync(path.join(root, '_internal/seed/codex-home/skills/.system/skill-creator/SKILL.md')));
-assert.ok(fs.existsSync(path.join(root, '_internal/setup-enterprise-preview.ps1')));
+assert.ok(fs.existsSync(path.join(root, '_internal/setup-codex-managed.ps1')));
 console.log('Enterprise package verification passed:', metadata.version);

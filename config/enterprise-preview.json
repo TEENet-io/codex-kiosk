@@ -1,6 +1,6 @@
 {
-  "name": "TEENet AI 工作间",
-  "version": "26.901.51231-enterprise-preview.2",
+  "name": "Codex",
+  "version": "26.901.51231-b1",
   "base": {
     "tag": "official-msix-26.901.6511.0",
     "appVersion": "26.901.51231",
@@ -9,7 +9,7 @@
     "sha256": "fd9ae9eeeeaf11577191ce5a39d0b8f95fa73d591aa3a94f688b84d294d1fa85"
   },
   "configuration": "existing-admin-managed-codex-home",
-  "releaseChannel": "preview",
+  "releaseChannel": "self-maintained",
   "carrier": {
     "tag": "offline-v26.810.52044-b1",
     "appVersion": "26.810.52044",

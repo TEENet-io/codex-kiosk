@@ -2,7 +2,7 @@
 
 本文件记录企业精简版已实现的改动、保留能力、对应代码及尚未完成的集成项。需求依据为 2026-09-08 TEENet 周会；最近更新：2026-09-09。
 
-适用版本：`26.901.51231-enterprise-preview.2`。这是单机试用预览包，尚未通过 ai-env-mgr 发布到员工机队。
+当前构建：`26.901.51231-b1`（待验证），恢复 Codex 名称与旧安装位置。下方 preview.2 下载与验收是历史记录，不代表新构建已通过验证。尚未通过 ai-env-mgr 发布到员工机队。
 
 ## 1. 版本与构建来源
 
@@ -153,7 +153,7 @@
 - 启动器：`Codex.vbs` / `Codex.cmd`，运行企业 setup 后启动桌面程序。
 - 安装与启动不覆盖员工 Provider、API Key、已有模型配置或会话文件。
 - setup 仅负责必要的 Skill 种子及运行环境准备，不承载后台审计、计费或业务兼容规则。
-- 安装、重新安装与配置保留逻辑见 [setup-enterprise-preview.ps1](../scripts/setup-enterprise-preview.ps1) 和 [TEENetPreview.iss.tpl](../installer/TEENetPreview.iss.tpl)。
+- 安装、重新安装与配置保留逻辑见 [setup-enterprise-preview.ps1](../scripts/setup-enterprise-preview.ps1) 和 [CodexManaged.iss.tpl](../installer/CodexManaged.iss.tpl)。
 - 本包尚未完成对 `C:\tools\Codex` 的正式覆盖升级验收。单机试用使用默认预览目录；管理员机队升级需另外确认安装目录、旧文件清理、运行用户和快捷方式。
 
 ## 6. 管理系统与未完成事项

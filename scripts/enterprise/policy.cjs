@@ -74,7 +74,7 @@
     return !/^\/(?:automations|remote|remote-connections|codex-mobile|pull-requests|scratchpad|chronicle|computer-use|browser-use|import|profile|account)(?:\/|$)/.test(route);
   }
   const writableConfigKeys = new Set(['model', 'model_reasoning_effort', 'model_reasoning_summary', 'service_tier']);
-  const reason = '此操作由 TEENet 管理员统一管理。';
+  const reason = '此操作由管理员统一管理。';
   function requestDenial(request) {
     const method = request?.method;
     if (typeof method !== 'string') return null;

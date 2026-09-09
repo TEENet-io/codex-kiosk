@@ -10,7 +10,8 @@ import { setTimeout as delay } from 'node:timers/promises';
 const require = createRequire(import.meta.url);
 const asar = require('@electron/asar');
 const diagnosticAuth = process.argv[4];
-if (diagnosticAuth) assert.ok(['apikey', 'bearer-only', 'stale-chatgpt'].includes(diagnosticAuth));
+if (diagnosticAuth) assert.ok(['control', 'apikey', 'bearer-only', 'stale-chatgpt'].includes(diagnosticAuth));
+const customCatalog = diagnosticAuth && diagnosticAuth !== 'control';
 
 if (process.platform !== 'win32') throw new Error('Enterprise desktop smoke requires Windows');
 let root = path.resolve(process.argv[2]);
@@ -21,13 +22,13 @@ const isolated = fs.mkdtempSync(path.join(os.tmpdir(), 'teenet-smoke-'));
 const home = path.join(isolated, 'codex');
 fs.mkdirSync(home, { recursive: true });
 let catalog = path.join(root, '_internal/models-api.json').replaceAll('\\', '/');
-if (diagnosticAuth) {
+if (customCatalog) {
   const { gatewayCatalogFixture } = await import('./test/fixtures/gateway-catalog.mjs');
   const template = JSON.parse(fs.readFileSync(catalog, 'utf8')).models[0];
   catalog = path.join(home, 'models.json').replaceAll('\\', '/');
   fs.writeFileSync(catalog, JSON.stringify(gatewayCatalogFixture(template)));
 }
-const config = `model = "${diagnosticAuth ? 'deepseek-v3.2' : 'gpt-5.6'}"\nmodel_provider = "preview"\nmodel_catalog_json = ${JSON.stringify(catalog)}\n[model_providers.preview]\nname = "TEENet Preview"\nbase_url = "http://127.0.0.1:9/v1"\nwire_api = "responses"\nexperimental_bearer_token = "preview-not-a-real-key"\n`;
+const config = `model = "${customCatalog ? 'deepseek-v3.2' : 'gpt-5.6'}"\nmodel_provider = "preview"\nmodel_catalog_json = ${JSON.stringify(catalog)}\n[model_providers.preview]\nname = "Gateway fixture"\nbase_url = "http://127.0.0.1:9/v1"\nwire_api = "responses"\nexperimental_bearer_token = "preview-not-a-real-key"\n`;
 fs.writeFileSync(path.join(home, 'config.toml'), config);
 if (diagnosticAuth !== 'bearer-only') {
   const jwt = claims => Buffer.from('{}').toString('base64url') + '.' + Buffer.from(JSON.stringify(claims)).toString('base64url') + '.fixture';
@@ -40,12 +41,22 @@ const installer = root + '-setup.exe';
 let installed = false;
 if (fs.existsSync(installer)) {
   const destination = path.join(isolated, 'installed');
+  if (!diagnosticAuth) {
+    fs.mkdirSync(path.join(destination, '_internal/app/resources'), { recursive: true });
+    fs.writeFileSync(path.join(destination, '_internal/app/resources/old-runtime-sentinel.txt'), 'old program file');
+    fs.mkdirSync(path.join(home, 'skills/employee-existing'), { recursive: true });
+    fs.writeFileSync(path.join(home, 'skills/employee-existing/SKILL.md'), '# Existing employee skill\n');
+  }
   const installation = spawnSync(installer, ['/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', '/NOICONS', '/DIR=' + destination, '/LOG=' + path.join(output, 'installer.log')], {
     env: { ...process.env, CODEX_HOME: home }, timeout: 180000, windowsHide: true,
   });
   assert.equal(installation.status, 0, installation.error?.message || 'preview installer exit code');
   assert.equal(fs.readFileSync(path.join(home, 'config.toml'), 'utf8'), config, 'installer preserves managed configuration');
   assert.ok(fs.existsSync(path.join(home, 'skills/.system/skill-creator/SKILL.md')), 'installer seeds skill creator');
+  if (!diagnosticAuth) {
+    assert.equal(fs.existsSync(path.join(destination, '_internal/app/resources/old-runtime-sentinel.txt')), false, 'upgrade replaces obsolete program files');
+    assert.equal(fs.readFileSync(path.join(home, 'skills/employee-existing/SKILL.md'), 'utf8'), '# Existing employee skill\n', 'upgrade preserves employee skills');
+  }
   root = destination;
   installed = true;
 }
@@ -70,6 +81,13 @@ const productionMain = fs.readFileSync(mainPath, 'utf8');
 const devtoolsAnchor = 'devTools:this.options.allowDevtools';
 assert.equal(productionMain.split(devtoolsAnchor).length - 1, 2, 'pinned window instrumentation anchors');
 fs.writeFileSync(mainPath, productionMain.replaceAll(devtoolsAnchor, 'devTools:true'));
+if (diagnosticAuth && current) {
+  const rendererPath = path.join(instrumentation, 'webview/assets/app-initial-f87238153a19.js');
+  const renderer = fs.readFileSync(rendererPath, 'utf8');
+  const anchor = 'componentDidCatch(e,{componentStack:t}){';
+  assert.equal(renderer.split(anchor).length - 1, 1, 'pinned error boundary diagnostic anchor');
+  fs.writeFileSync(rendererPath, renderer.replace(anchor, anchor + 'console.error("Codex diagnostic boundary",e,e?.stack,t);'));
+}
 await asar.createPackage(instrumentation, archive);
 const server = net.createServer();
 await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
@@ -147,13 +165,6 @@ try {
   await send('Runtime.enable');
   if (diagnosticAuth) {
     result.diagnosticAuth = diagnosticAuth;
-    result.caughtExceptions = [];
-    await send('Debugger.enable');
-    cdp.on('Debugger.paused', event => {
-      if (result.caughtExceptions.length < 200) result.caughtExceptions.push({ reason: event.reason, error: event.data?.description, frames: event.callFrames.slice(0, 12).map(frame => ({ functionName: frame.functionName, url: frame.url, location: frame.location })) });
-      cdp.send('Debugger.resume').catch(() => {});
-    });
-    await send('Debugger.setPauseOnExceptions', { state: 'all' });
   }
   await send('Runtime.runIfWaitingForDebugger');
   await send('Page.bringToFront');

@@ -107,19 +107,19 @@ for (const name of ['Codex.cmd', 'Codex.vbs']) {
   const source = fs.readFileSync(file, 'utf8').replaceAll('CODEX_ELECTRON_ENABLE_WINDOWS_COMPUTER_USE=1', 'CODEX_ELECTRON_ENABLE_WINDOWS_COMPUTER_USE=0').replaceAll('("CODEX_ELECTRON_ENABLE_WINDOWS_COMPUTER_USE") = "1"', '("CODEX_ELECTRON_ENABLE_WINDOWS_COMPUTER_USE") = "0"');
   fs.writeFileSync(file, source);
 }
-fs.copyFileSync(path.join(repo, 'scripts/setup-enterprise-preview.ps1'), path.join(stage, '_internal/setup-enterprise-preview.ps1'));
+fs.copyFileSync(path.join(repo, 'scripts/setup-enterprise-preview.ps1'), path.join(stage, '_internal/setup-codex-managed.ps1'));
 const cmdPath = path.join(stage, 'Codex.cmd');
-fs.writeFileSync(cmdPath, fs.readFileSync(cmdPath, 'utf8').replace('start "" /D', 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0_internal\\setup-enterprise-preview.ps1"\r\nif errorlevel 1 exit /b 1\r\nstart "" /D'));
+fs.writeFileSync(cmdPath, fs.readFileSync(cmdPath, 'utf8').replace('start "" /D', 'powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%~dp0_internal\\setup-codex-managed.ps1"\r\nif errorlevel 1 exit /b 1\r\nstart "" /D'));
 const vbsPath = path.join(stage, 'Codex.vbs');
-fs.writeFileSync(vbsPath, fs.readFileSync(vbsPath, 'utf8').replace('shell.CurrentDirectory = appRoot', 'If shell.Run("powershell.exe -NoProfile -ExecutionPolicy Bypass -File """ & fso.BuildPath(packageRoot, "_internal\\setup-enterprise-preview.ps1") & """", 0, True) <> 0 Then WScript.Quit 1\r\nshell.CurrentDirectory = appRoot'));
-const blockList = `# TEENet 企业版功能清单\n\n版本：${config.version}\n基线：${config.base.tag}（MSIX ${config.base.msixVersion}）\n基线 SHA-256：${config.base.sha256}\n\n## 屏蔽\n\n- 完整设置、配置文件编辑、账户切换、连接与环境管理。\n- Worktree、Pull Requests、自动化、Heartbeat、Scratchpad、个性化、Chronicle。\n- Computer Use、浏览器控制、Chrome 扩展和本机桥接；移除专用控制运行时，保留普通 Node/办公运行时。\n- 员工安装/卸载插件、添加插件市场、导入导出配置。\n- Chat/Work 模式切换、快捷浮窗聊天及不留历史的临时聊天。\n- 个性化首启问卷、新模型推广弹窗、Windows 沙箱安装向导、Codex Micro USB 硬件探测。\n- 对应快捷键、命令菜单及被禁止的配置/插件 RPC。\n\n## 保留\n\n- 本地对话、项目、归档/恢复、语音、快捷键、外观、宠物悬浮层与宠物偏好。\n- 会话模型切换，默认模型沿用管理员下发配置。\n- 默认完整访问、普通文件与终端能力、Skill 创建。\n- 管理员预装插件与办公运行时，移除浏览器/Chrome/Computer Use、统一控制、自动化应用工具和写作个性化插件。\n\n## 管理与验收边界\n\n- 这是预览版本。完整设置替换为仅包含外观、语音、快捷键、归档和宠物的精简页面。\n- 沿用现有 CODEX_HOME，不覆盖个人 Provider、密钥或会话文件。\n- 默认模型、隐私策略和插件预装名单由现有管理系统配置，本包不内置员工密钥。\n- 对话采集沿用 ai-env-mgr；项目归属落库、后台回收和网关计费需另外联调，尚未在本包验收。\n- 完整访问和 Skill 创建保留，应用内限制不能代替终端操作系统权限管理。\n- Windows 实测结果见 smoke-result.json（若存在）；没有该结果时，不视为已完成 Windows 验收。\n`;
+fs.writeFileSync(vbsPath, fs.readFileSync(vbsPath, 'utf8').replace('shell.CurrentDirectory = appRoot', 'If shell.Run("powershell.exe -NoProfile -ExecutionPolicy Bypass -File """ & fso.BuildPath(packageRoot, "_internal\\setup-codex-managed.ps1") & """", 0, True) <> 0 Then WScript.Quit 1\r\nshell.CurrentDirectory = appRoot'));
+const blockList = `# Codex 功能清单\n\n版本：${config.version}\n基线：${config.base.tag}（MSIX ${config.base.msixVersion}）\n基线 SHA-256：${config.base.sha256}\n\n## 屏蔽\n\n- 完整设置、配置文件编辑、账户切换、连接与环境管理。\n- Worktree、Pull Requests、自动化、Heartbeat、Scratchpad、个性化、Chronicle。\n- Computer Use、浏览器控制、Chrome 扩展和本机桥接；移除专用控制运行时，保留普通 Node/办公运行时。\n- 员工安装/卸载插件、添加插件市场、导入导出配置。\n- Chat/Work 模式切换、快捷浮窗聊天及不留历史的临时聊天。\n- 个性化首启问卷、新模型推广弹窗、Windows 沙箱安装向导、Codex Micro USB 硬件探测。\n- 对应快捷键、命令菜单及被禁止的配置/插件 RPC。\n\n## 保留\n\n- 本地对话、项目、归档/恢复、语音、快捷键、外观、宠物悬浮层与宠物偏好。\n- 会话模型切换，默认模型沿用管理员下发配置。\n- 默认完整访问、普通文件与终端能力、Skill 创建。\n- 管理员预装插件与办公运行时，移除浏览器/Chrome/Computer Use、统一控制、自动化应用工具和写作个性化插件。\n\n## 管理与验收边界\n\n- 完整设置替换为仅包含外观、语音、快捷键、归档和宠物的精简页面。\n- 沿用现有 CODEX_HOME，不覆盖个人 Provider、密钥或会话文件。\n- 默认模型、隐私策略和插件预装名单由现有管理系统配置，本包不内置员工密钥。\n- 对话采集沿用 ai-env-mgr；项目归属落库、后台回收和网关计费需另外联调，尚未在本包验收。\n- 完整访问和 Skill 创建保留，应用内限制不能代替终端操作系统权限管理。\n- Windows 实测结果见 smoke-result.json（若存在）；没有该结果时，不视为已完成 Windows 验收。\n`;
 fs.writeFileSync(path.join(stage, 'block-list.md'), blockList);
-fs.writeFileSync(path.join(stage, 'README.md'), '# TEENet AI 工作间预览\n\n解压后双击 Codex.vbs 启动。使用管理员已有的模型与凭据配置。功能清单见 block-list.md。\n\n本包仅供单机预览，请先完成验收，再通过管理系统安排员工部署。\n');
-fs.writeFileSync(path.join(stage, 'teenet-version.txt'), config.version + '\n');
-const manifest = { ...config, builtAt: new Date().toISOString(), sourceCommit: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: repo, encoding: 'utf8' }).trim(), asarSha256: await hashFile(archive), report, windowsSmoke: 'not-run', status: 'preview' };
+fs.writeFileSync(path.join(stage, 'README.md'), '# Codex\n\n解压后双击 Codex.vbs 启动。使用管理员已有的模型与凭据配置。功能清单见 block-list.md。\n\n本包为自维护版本。安装到原有 Codex 目录时请先退出应用；模型、凭据及聊天数据沿用现有配置。\n');
+fs.writeFileSync(path.join(stage, 'codex-version.txt'), config.version + '\n');
+const manifest = { ...config, builtAt: new Date().toISOString(), sourceCommit: execFileSync('git', ['rev-parse', 'HEAD'], { cwd: repo, encoding: 'utf8' }).trim(), asarSha256: await hashFile(archive), report, windowsSmoke: 'not-run', status: 'built-unvalidated' };
 fs.writeFileSync(path.join(stage, 'enterprise-build.json'), JSON.stringify(manifest, null, 2) + '\n');
 execFileSync(process.execPath, [path.join(repo, 'scripts/verify-enterprise-preview.mjs'), stage], { stdio: 'inherit' });
-const portable = path.join(output, 'TEENet-Codex-' + config.version);
+const portable = path.join(output, 'codex-only-local-' + config.version);
 if (fs.existsSync(portable)) throw new Error('Output exists; use a fresh --output path: ' + portable);
 fs.cpSync(stage, portable, { recursive: true });
 fs.writeFileSync(path.join(output, 'block-list.md'), blockList);
@@ -134,17 +134,17 @@ if (!values['skip-zip']) {
 if (values.installer) {
   if (process.platform !== 'win32') throw new Error('Native installer requires Windows');
   const compiler = path.join(process.env['ProgramFiles(x86)'] || 'C:/Program Files (x86)', 'Inno Setup 6/ISCC.exe');
-  const iss = fs.readFileSync(path.join(repo, 'installer/TEENetPreview.iss.tpl'), 'utf8')
+  const iss = fs.readFileSync(path.join(repo, 'installer/CodexManaged.iss.tpl'), 'utf8')
     .replaceAll('__SOURCE_ROOT__', portable).replaceAll('__OUTPUT_ROOT__', output)
     .replaceAll('__APP_VERSION__', config.version).replaceAll('__VERSION_INFO_VERSION__', config.base.msixVersion)
     .replaceAll('__INSTALLER_ROOT__', path.join(repo, 'installer'));
   const issPath = path.join(work, 'enterprise.iss');
   fs.writeFileSync(issPath, '\ufeff' + iss);
   execFileSync(compiler, [issPath], { stdio: 'inherit' });
-  assets.push(path.join(output, 'TEENet-Codex-' + config.version + '-setup.exe'));
+  assets.push(path.join(output, 'codex-only-local-' + config.version + '-setup.exe'));
 }
 const sums = [];
 for (const asset of assets) sums.push((await hashFile(asset)) + ' *' + path.basename(asset));
 fs.writeFileSync(path.join(output, 'SHA256SUMS.txt'), sums.join('\n') + '\n');
-console.log('Preview ready:', portable);
+console.log('Codex package ready:', portable);
 console.log('Temporary build root:', work);
