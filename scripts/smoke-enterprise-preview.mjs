@@ -189,6 +189,16 @@ try {
   await clickPreference('归档对话');
   await delay(2000);
   await capture('04-archive.png');
+  await clickPreference('语音');
+  await delay(2000);
+  await capture('05-voice.png');
+  assert.equal(await evaluate(() => [...document.querySelectorAll('nav[aria-label="个人偏好"] button')].find(button => button.textContent === '语音')?.getAttribute('aria-current')), 'page');
+  result.checks.push('voice preferences retained');
+  await navigate('/plugins');
+  await delay(3000);
+  await capture('06-plugins.png');
+  assert.ok(!await evaluate(() => [...document.querySelectorAll('button')].some(button => /^(?:Add marketplace|添加市场|添加插件市场)$/.test(button.textContent.trim()))), 'employee marketplace installation unavailable');
+  result.checks.push('controlled plugins route without marketplace installation');
   assert.deepEqual(errors, [], 'renderer exceptions');
   assert.ok(!/Uncaught Exception|JavaScript error occurred in the main process/.test(fs.readFileSync(path.join(output, 'desktop.log'), 'utf8')), 'no main process exceptions');
   assert.ok(!fs.readFileSync(path.join(output, 'desktop.log'), 'utf8').includes('plugin_marketplace_add_failed'), 'native bundled marketplace initialized');
