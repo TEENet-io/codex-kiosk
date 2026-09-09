@@ -146,10 +146,10 @@ import os from 'os';
 import crypto from 'crypto';
 import { assertGateOverrideSync } from './check-gate-override-sync.mjs';
 import { assertJavaScriptSyntax } from './check-js-syntax.mjs';
+import { disableAsarIntegrity } from './desktop-runtime-fuses.mjs';
 
 const require = createRequire(import.meta.url);
 const asar = require('@electron/asar');
-const { flipFuses, FuseVersion, FuseV1Options } = require('@electron/fuses');
 const {
   DESKTOP_ASAR_PATCH_MARKERS,
   DESKTOP_ASAR_KNOWN_GATE_IDS,
@@ -2059,11 +2059,6 @@ function patchTrustedBrowserClientHashes(filePaths, chromeBrowserClientHash) {
 
 function isMissingUnpackedFileError(error) {
   return error && error.code === 'ENOENT';
-}
-
-function isMissingElectronFuseSentinelError(error) {
-  return error instanceof Error &&
-    error.message.includes('Could not find sentinel in the provided Electron binary');
 }
 
 async function extractAsarForPatch(archivePath, destinationPath) {
@@ -4964,27 +4959,8 @@ try {
 
   // Disable asar integrity validation fuse in the Electron binary so it
   // accepts the modified asar without crashing on hash mismatch.
-  const exePath = path.resolve(appDir, MAIN_EXECUTABLE_NAME);
-  if (!fs.existsSync(exePath)) {
-    throw new Error(`Electron main executable was not found: ${exePath}`);
-  }
-  log(`Flipping asar integrity fuse in ${path.basename(exePath)}…`);
-  try {
-    await flipFuses(exePath, {
-      version: FuseVersion.V1,
-      [FuseV1Options.EnableEmbeddedAsarIntegrityValidation]: false,
-    });
-    log('Asar integrity fuse disabled.');
-  } catch (error) {
-    if (!isMissingElectronFuseSentinelError(error)) {
-      throw error;
-    }
-
-    log(
-      `Current ${MAIN_EXECUTABLE_NAME} does not expose the Electron asar integrity fuse; ` +
-      'no fuse flip needed.',
-    );
-  }
+  const runtimeBinary = await disableAsarIntegrity(appDir);
+  log(`Asar integrity fuse disabled and verified in ${path.basename(runtimeBinary)}.`);
 
   log('Done.');
 } finally {

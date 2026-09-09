@@ -86,6 +86,7 @@
 | 新增桌面应用自动化工具 | 移除 `codex-app-tools`，避免重新开放自动化等高级工具 |
 | 新增个性化写作插件 | 移除 `user-writing` |
 | MSIX 运行时路径 | 规范化 `%40` 作用域目录及 Statsig 文件名，移除 Computer Use 专用的 cua/sky/browser-desktop 依赖；保留 Node、npm 和普通办公依赖，验证安装目标路径长度 |
+| Owl 拆分 Electron 运行时 | 新版完整性 fuse 位于 `chrome.dll`，主 EXE 仅为启动器；更新打包时的 ASAR fuse 处理并验证结果，未知布局直接构建失败，见 [desktop-runtime-fuses.mjs](../scripts/desktop-runtime-fuses.mjs) |
 | 新增浏览器能力 | 关闭 browserExtensions、browserSettingsCloudSync、browserUseTinysky、inAppBrowserUseHistory、cuaPIP 等 |
 | 全功能离线构建主动启用高级功能 | 企业构建使用 `--enterprise`，跳过浏览器/Computer Use、工作环境和 Activity 入口启用逻辑；保留必要的独立启动、办公插件、离线查询、模型和归档兼容 |
 | Windows 界面测试使用旧模块导出 | 更新测试入口，并增加语音和受控插件页面检查 |
@@ -122,8 +123,9 @@ ai-env-mgr 相关代码位于 `/root/pp_home/windows-pc/ai-env-mgr`。本次任�
 - 本地：新版独立运行补丁全部匹配，企业语义补丁及整包验证通过。
 - 本地：相关回归测试 74 项通过、1 项因平台条件跳过；网关构建及 18 项测试通过。
 - 新增回归覆盖：静态 gate 的企业关闭值、新模型格式化调用、归档分页/错误语义、新增受限插件、云任务执行入口。
-- Windows CI：首次新版构建通过，实际安装遇到 Computer Use 依赖超长路径并回滚。已补齐 MSIX 编码路径规范化、移除专用控制依赖和安装路径预算检查；修复后的 Windows 验收待完成。
+- Windows CI：首次新版构建通过，实际安装遇到 Computer Use 依赖超长路径并回滚。补齐 MSIX 路径规范化与专用控制依赖移除后，第二次静默安装、管理员配置保留及 Skill 初始化通过；生产程序启动又暴露 Owl 运行时 ASAR fuse 定位变化，已增加修复与回归验证，最终 Windows 验收待完成。
 - 首次新版验收运行（安装失败，非交付版本）：<https://github.com/TEENet-io/codex-kiosk/actions/runs/34316082790>。
+- 第二次新版验收运行（安装成功、启动失败，非交付版本）：<https://github.com/TEENet-io/codex-kiosk/actions/runs/34316766914>。
 - 桌面检查：生产程序直接启动、静默安装、管理员配置保留、首页、精简偏好、受限设置重定向、快捷键、归档、语音、受控插件及异常日志。
 - 截图测试仅修改临时安装副本以启用 DevTools；分发的安装器和 ZIP 保持生产配置。
 
