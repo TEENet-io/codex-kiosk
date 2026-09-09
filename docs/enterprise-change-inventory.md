@@ -2,7 +2,7 @@
 
 本文件记录企业精简版已实现的改动、保留能力、对应代码及尚未完成的集成项。需求依据为 2026-09-08 TEENet 周会；最近更新：2026-09-09。
 
-当前构建：`26.901.51231-b1`（待验证），恢复 Codex 名称与旧安装位置。下方 preview.2 下载与验收是历史记录，不代表新构建已通过验证。尚未通过 ai-env-mgr 发布到员工机队。
+当前构建：`26.901.51231-b1`，恢复 Codex 名称与旧安装位置，Windows CI 已通过。下载和适用边界见第 7 节；preview.2 与 preview.1 为历史记录。尚未通过 ai-env-mgr 发布到员工机队。
 
 ## 1. 版本与构建来源
 
@@ -171,6 +171,20 @@
 ai-env-mgr 相关代码位于 `/root/pp_home/windows-pc/ai-env-mgr`。本次任务未修改该仓库，也未发布机队策略。
 
 ## 7. 验证与交付记录
+
+### Codex 26.901.51231-b1：恢复原安装名称（2026-09-09）
+
+构建提交：`c778b1500d179a295d9bbfde5cf6cb999a59186f`；[Windows 构建与验收](https://github.com/TEENet-io/codex-kiosk/actions/runs/34332567479)。
+
+- 安装器与快捷方式统一显示 Codex，默认目录 `%USERPROFILE%\Codex`，沿用旧安装 AppId；以前手动选择过安装目录时优先复用该位置。
+- 实际安装后的测试通过：旧运行时哨兵文件被清除，用户配置与已有 Skill 保留；生产 EXE 启动、七页截图、宠物悬浮层显示/收起、完整访问默认值与管理限制正常，`rendererErrors=[]`、`consoleErrors=[]`。
+- [下载安装器、便携包与报告](https://nightly.link/TEENet-io/codex-kiosk/actions/artifacts/10096695512.zip)，解压后运行 `codex-only-local-26.901.51231-b1-setup.exe`；[仅下载验证报告](https://nightly.link/TEENet-io/codex-kiosk/actions/artifacts/10096667904.zip)。产物保留 14 天，未创建正式 Release。
+- 同日[独立诊断](https://github.com/TEENet-io/codex-kiosk/actions/runs/34332556000)在 preview.2 包上使用员工提供的八个模型元数据，测试 API Key、仅 Provider bearer、残留过期 ChatGPT 凭据及原目录对照，四组通过。未发送真实模型请求，也未复现员工机器的空消息 AppRoutes 异常，不能据此宣称该异常已修复。
+
+| 文件 | SHA-256 |
+| --- | --- |
+| `codex-only-local-26.901.51231-b1-setup.exe` | `063b68eeeb4cb5842a50e36c9ab54cdc307fb11647686352a7e1ac109669767a` |
+| `codex-only-local-26.901.51231-b1-portable.zip` | `60515f2050312bc4652a844323cea8b45077e388295fcbc5dba5d2103b064d0b` |
 
 ### preview.2：恢复宠物与删除提示（2026-09-09）
 
