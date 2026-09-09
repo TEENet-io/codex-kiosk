@@ -124,19 +124,42 @@ ai-env-mgr 相关代码位于 `/root/pp_home/windows-pc/ai-env-mgr`。本次任�
 
 ## 7. 验证与交付记录
 
-- 本地：新版独立运行补丁全部匹配，企业语义补丁及整包验证通过。
-- 本地：相关回归测试 74 项通过、1 项因平台条件跳过；网关构建及 18 项测试通过。
-- 新增回归覆盖：静态 gate 的企业关闭值、新模型格式化调用、归档分页/错误语义、新增受限插件、云任务执行入口。
-- Windows CI：首次新版构建通过，实际安装遇到 Computer Use 依赖超长路径并回滚。补齐 MSIX 路径规范化与专用控制依赖移除后，第二次静默安装、管理员配置保留及 Skill 初始化通过；生产程序启动又暴露 Owl 运行时 ASAR fuse 定位变化，已增加修复与回归验证，最终 Windows 验收待完成。
-- 首次新版验收运行（安装失败，非交付版本）：<https://github.com/TEENet-io/codex-kiosk/actions/runs/34316082790>。
-- 第二次新版验收运行（安装成功、启动失败，非交付版本）：<https://github.com/TEENet-io/codex-kiosk/actions/runs/34316766914>。
-- 第三次新版验收运行：静默安装及生产启动通过，首页发现原生菜单对子元素的新要求；已增加空组件兼容及首页错误页断言，页面验收待重跑：<https://github.com/TEENet-io/codex-kiosk/actions/runs/34317578874>。
-- 第四次运行自动检查与六张截图均通过；人工复核发现新版快捷键别名和权限档案默认值遗漏，已补充修复及验收断言，最终交付需使用下一轮产物：<https://github.com/TEENet-io/codex-kiosk/actions/runs/34318409339>。
-- 第五次运行 CLI 有效权限配置和生产启动通过；桌面测试在冷启动页面尚空白时提前断言，改为有限时等待首页和权限数据就绪，保留 Full access 及错误页断言：<https://github.com/TEENet-io/codex-kiosk/actions/runs/34319258116>。
-- 第六次运行确认页面加载后旧权限界面仍默认 Ask for approval；定位到 composer 独立默认选择，已补齐受服务器 requirements 约束的 full-access 默认值和回归测试：<https://github.com/TEENet-io/codex-kiosk/actions/runs/34320066012>。
-- 桌面检查：生产程序直接启动、静默安装、管理员配置保留、首页、精简偏好、受限设置重定向、快捷键、归档、语音、受控插件及异常日志。
-- 截图测试仅修改临时安装副本以启用 DevTools；分发的安装器和 ZIP 保持生产配置。
+最终 Windows 预览验收已通过（2026-09-09）。验收代码提交：`678f45d39ed288614a9aed8d7cc54ca4bf50d213`；[CI 运行与完整日志](https://github.com/TEENet-io/codex-kiosk/actions/runs/34321045595)。后续仅更新本文档，不改变已验收的程序。
 
-随包文件：`block-list.md`、`enterprise-build.json`、`SHA256SUMS.txt`；CI 另提供截图、安装日志、桌面日志和 `smoke-result.json`。安装包 SHA-256 在 Windows 构建完成后记录，不能拿原始 MSIX 的摘要代替。
+- Windows：125 项回归测试、18 项网关测试全部通过，网关构建通过。
+- 包验证：补丁完整性、JavaScript 语法、企业策略副本、插件名单、运行时路径及 Owl ASAR fuse 检查通过。
+- CLI：未配置 node_repl、已有 HTTP MCP、已有 stdio MCP 三种配置均初始化成功；config/read 确认有效默认权限与审批值，原配置文件未修改。
+- 安装：静默安装成功，管理员 Provider/模型配置保留，Skill 创建种子存在；分发的生产 EXE 直接启动成功，app-server 与窗口就绪。
+- 界面：首页、外观、快捷键、归档、语音、受控插件页共六张截图；首页明确显示 Full access 和配置中的 GPT-5.6，受限设置重定向、Work/Chat/宠物/Activity/临时聊天快捷键检查通过。
+- 运行异常：`rendererErrors=[]`、`consoleErrors=[]`；主进程无未捕获异常。
+- 测试使用无效的占位凭据，不发送真实模型请求。语音页面明确显示账户无 voice chat 权限；插件页已验证可进入及管理操作限制，截图仍为 Loading plugins，未验收真实插件目录加载、语音通话或网关端到端能力。这些仍按第 6 节联调。
+- 截图测试仅对临时安装副本启用 DevTools；分发安装器和 ZIP 保持生产配置。
+
+### 下载与校验
+
+- [安装器、便携包、block-list 与验证报告](https://nightly.link/TEENet-io/codex-kiosk/actions/artifacts/10092114714.zip)（约 1.39 GB，解压后使用根目录的 setup.exe）。
+- [单独下载截图与验证报告](https://nightly.link/TEENet-io/codex-kiosk/actions/artifacts/10092089736.zip)。
+- GitHub Actions 产物保留 14 天。当前未创建正式 Release，也未发布到 OSS 或员工机队。
+- 本机交付目录：`/root/sun_home/codex-kiosk/dist/enterprise-26.901/`。
+
+| 文件 | SHA-256 |
+| --- | --- |
+| `TEENet-Codex-26.901.51231-enterprise-preview.1-setup.exe` | `1864449608fb9d095a21de8a9eb5a2e8e83249496028ab57c059c022f1ae32b9` |
+| `TEENet-Codex-26.901.51231-enterprise-preview.1-portable.zip` | `77256ce27ec403962e51aa5fc37f443b8ec40506c426be62160b1422596001ee` |
+
+随包文件：`block-list.md`、`enterprise-build.json`、`SHA256SUMS.txt`；CI 另提供截图、安装日志、桌面日志和 `smoke-result.json`。安装包摘要与第 1 节的原始 MSIX 摘要不同，不能混用。
+
+### 此次适配的 CI 问题追踪
+
+以下均为中间验证记录，应使用上面的最终通过产物：
+
+| 运行 | 当时的问题 | 已落地修复 |
+| --- | --- | --- |
+| [34316082790](https://github.com/TEENet-io/codex-kiosk/actions/runs/34316082790) | 安装路径过长，安装器回滚 | 规范化 MSIX 路径，移除 Computer Use 专用深层依赖，检查路径预算 |
+| [34316766914](https://github.com/TEENet-io/codex-kiosk/actions/runs/34316766914) | 安装成功，ASAR 完整性校验阻止启动 | 定位 Owl 的 chrome.dll fuse，构建时处理并验证 |
+| [34317578874](https://github.com/TEENet-io/codex-kiosk/actions/runs/34317578874) | 生产启动成功，侧栏读取 null 子元素 props | 屏蔽操作保留空组件元素接口，不保留 DOM/事件 |
+| [34318409339](https://github.com/TEENet-io/codex-kiosk/actions/runs/34318409339) | 自动检查通过，截图发现快捷键别名与默认权限遗漏 | 补充模式/宠物等新命令别名，适配权限档案并增加明确断言 |
+| [34319258116](https://github.com/TEENet-io/codex-kiosk/actions/runs/34319258116) | 冷启动首页尚空白，权限断言过早 | 有限时等待首页与权限数据就绪，失败时记录页面文字 |
+| [34320066012](https://github.com/TEENet-io/codex-kiosk/actions/runs/34320066012) | 页面加载后旧权限界面仍默认 Ask for approval | 默认选服务器允许的 full-access，保留 requirements 限制检查 |
 
 下次升级顺序：归档官方包及摘要 → 核对本清单 → 适配补丁和新增功能 → 运行回归 → 构建/验证 → Windows 安装与页面检查 → 更新本清单和 block-list → 再安排正式发布。
