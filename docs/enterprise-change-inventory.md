@@ -131,6 +131,7 @@ ai-env-mgr 相关代码位于 `/root/pp_home/windows-pc/ai-env-mgr`。本次任�
 - 第二次新版验收运行（安装成功、启动失败，非交付版本）：<https://github.com/TEENet-io/codex-kiosk/actions/runs/34316766914>。
 - 第三次新版验收运行：静默安装及生产启动通过，首页发现原生菜单对子元素的新要求；已增加空组件兼容及首页错误页断言，页面验收待重跑：<https://github.com/TEENet-io/codex-kiosk/actions/runs/34317578874>。
 - 第四次运行自动检查与六张截图均通过；人工复核发现新版快捷键别名和权限档案默认值遗漏，已补充修复及验收断言，最终交付需使用下一轮产物：<https://github.com/TEENet-io/codex-kiosk/actions/runs/34318409339>。
+- 第五次运行 CLI 有效权限配置和生产启动通过；桌面测试在冷启动页面尚空白时提前断言，改为有限时等待首页和权限数据就绪，保留 Full access 及错误页断言：<https://github.com/TEENet-io/codex-kiosk/actions/runs/34319258116>。
 - 桌面检查：生产程序直接启动、静默安装、管理员配置保留、首页、精简偏好、受限设置重定向、快捷键、归档、语音、受控插件及异常日志。
 - 截图测试仅修改临时安装副本以启用 DevTools；分发的安装器和 ZIP 保持生产配置。
 

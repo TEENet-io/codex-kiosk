@@ -138,15 +138,19 @@ try {
     if (response.exceptionDetails) throw new Error(response.exceptionDetails.exception?.description || response.exceptionDetails.text);
     return response.result.value;
   };
-  const waitFor = async fn => {
-    for (let attempt = 0; attempt < 30; attempt++) {
+  const waitFor = async (fn, attempts = 30) => {
+    for (let attempt = 0; attempt < attempts; attempt++) {
       if (await evaluate(fn)) return;
       await delay(1000);
     }
+    result.lastPageText = await evaluate(() => document.body?.innerText || '');
     throw new Error('Page condition timed out: ' + fn.toString());
   };
   await waitFor(() => document.body && document.readyState !== 'loading');
-  await delay(8000);
+  // document.readyState only covers the HTML shell. Owl may still be loading
+  // the renderer and initializing its app-server on a cold Windows runner.
+  await waitFor(() => /New chat|新建对话|新聊天|hit a snag|Something went wrong/.test(document.body.innerText), 60);
+  await waitFor(() => /Full access|完整访问|hit a snag|Something went wrong/.test(document.body.innerText), 30);
   const capture = async name => {
     // Headless Windows runners can expose an interactive DOM without a
     // compositor surface. Preserve that distinction in the validation report.
