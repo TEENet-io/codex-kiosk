@@ -29,7 +29,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        auth: [bearer-only, stale-chatgpt]
+        auth: [bearer-only]
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -40,10 +40,10 @@ jobs:
       - uses: actions/download-artifact@v8
         with:
           name: Codex-package
-          run-id: 34361590519
+          run-id: 34367229919
           github-token: ${{ github.token }}
           path: C:/te-diagnostic
-      - name: Unpack validated Codex b3
+      - name: Unpack validated Codex b4
         shell: pwsh
         run: |
           $zip = Get-ChildItem C:/te-diagnostic -Filter '*-portable.zip' | Select-Object -First 1
@@ -54,7 +54,8 @@ jobs:
         env:
           CODEX_TEST_STARTUP_TRACE: '0'
           CODEX_TEST_MODEL_COMMAND_FIX: '0'
-          CODEX_TEST_EMPLOYEE_CONFIG: '1'
+          CODEX_TEST_EMPLOYEE_CONFIG: '0'
+          CODEX_TEST_RETURN_DIAG: '1'
         run: |
           $metadata = Get-ChildItem C:/te-portable -Recurse -Filter enterprise-build.json | Select-Object -First 1
           if (-not $metadata) { throw 'Preview metadata not found' }

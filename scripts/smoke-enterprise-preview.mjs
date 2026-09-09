@@ -341,6 +341,42 @@ try {
   };
   await navigate('/settings/appearance');
   await waitFor(() => !!document.querySelector('[data-teenet-preferences]'));
+  await waitFor(() => {
+    const text = document.querySelector('[data-teenet-preferences] main')?.innerText || '';
+    return /Theme|主题/.test(text) && !/正在加载/.test(text);
+  });
+  if (process.env.CODEX_TEST_RETURN_DIAG === '1') {
+    const clickBack = async () => {
+      const point = await evaluate(() => {
+        const button = [...document.querySelectorAll('[data-teenet-preferences] header button')].find(button => button.textContent === '返回对话');
+        if (!button) throw new Error('Missing return-to-chat button');
+        const rect = button.getBoundingClientRect();
+        const x = rect.x + rect.width / 2, y = rect.y + rect.height / 2;
+        window.__codexReturnClicks = 0;
+        button.addEventListener('click', () => window.__codexReturnClicks++);
+        return { x: Math.round(x * devicePixelRatio), y: Math.round(y * devicePixelRatio), region: getComputedStyle(button).getPropertyValue('-webkit-app-region'), hit: document.elementFromPoint(x, y)?.outerHTML?.slice(0, 250) };
+      });
+      const native = execFileSync('powershell.exe', ['-NoProfile', '-File', path.resolve('scripts/test/click-window-client.ps1'), '-TargetProcessId', String(child.pid), '-ClientX', String(point.x), '-ClientY', String(point.y)], { encoding: 'utf8', timeout: 15000 });
+      await delay(2000);
+      return { point, native: JSON.parse(native), ...(await evaluate(() => ({ clicked: window.__codexReturnClicks, stillInPreferences: !!document.querySelector('[data-teenet-preferences]'), hasComposer: !!document.querySelector('[contenteditable="true"]') }))) };
+    };
+    result.returnButtonBefore = await clickBack();
+    if (!result.returnButtonBefore.stillInPreferences) {
+      await navigate('/settings/appearance');
+      await waitFor(() => !!document.querySelector('[data-teenet-preferences]'));
+    }
+    await evaluate(() => {
+      const header = document.querySelector('[data-teenet-preferences] header');
+      header.style.position = 'relative';
+      header.style.zIndex = '20';
+      for (const button of header.querySelectorAll('button')) button.style.webkitAppRegion = 'no-drag';
+    });
+    result.returnButtonAfter = await clickBack();
+    assert.equal(result.returnButtonAfter.stillInPreferences, false, 'native return click leaves preferences');
+    assert.equal(result.returnButtonAfter.hasComposer, true, 'native return click restores composer');
+    await navigate('/settings/appearance');
+    await waitFor(() => /Theme|主题/.test(document.querySelector('[data-teenet-preferences] main')?.innerText || ''));
+  }
   assert.deepEqual(await evaluate(() => [...document.querySelectorAll('nav[aria-label="个人偏好"] button')].map(button => button.textContent)), ['外观', '语音', '快捷键', '归档对话']);
   assert.ok(!await evaluate(() => document.body.innerText.includes('默认权限：完整访问 · 模型与连接由管理员统一配置')), 'managed configuration hint removed');
   result.checks.push('limited preferences navigation without managed configuration hint');
