@@ -345,8 +345,7 @@ try {
     const text = document.querySelector('[data-teenet-preferences] main')?.innerText || '';
     return /Theme|主题/.test(text) && !/正在加载/.test(text);
   });
-  if (process.env.CODEX_TEST_RETURN_DIAG === '1') {
-    const clickBack = async () => {
+  const clickBack = async () => {
       const point = await evaluate(() => {
         const button = [...document.querySelectorAll('[data-teenet-preferences] header button')].find(button => button.textContent === '返回对话');
         if (!button) throw new Error('Missing return-to-chat button');
@@ -359,7 +358,8 @@ try {
       const native = execFileSync('powershell.exe', ['-NoProfile', '-File', path.resolve('scripts/test/click-window-client.ps1'), '-TargetProcessId', String(child.pid), '-ClientX', String(point.x), '-ClientY', String(point.y)], { encoding: 'utf8', timeout: 15000 });
       await delay(2000);
       return { point, native: JSON.parse(native), ...(await evaluate(() => ({ clicked: window.__codexReturnClicks, stillInPreferences: !!document.querySelector('[data-teenet-preferences]'), hasComposer: !!document.querySelector('[contenteditable="true"]') }))) };
-    };
+  };
+  if (process.env.CODEX_TEST_RETURN_DIAG === '1') {
     result.returnButtonBefore = await clickBack();
     if (!result.returnButtonBefore.stillInPreferences) {
       await navigate('/settings/appearance');
@@ -374,6 +374,32 @@ try {
     result.returnButtonAfter = await clickBack();
     assert.equal(result.returnButtonAfter.stillInPreferences, false, 'native return click leaves preferences');
     assert.equal(result.returnButtonAfter.hasComposer, true, 'native return click restores composer');
+    await navigate('/settings/appearance');
+    await waitFor(() => /Theme|主题/.test(document.querySelector('[data-teenet-preferences] main')?.innerText || ''));
+  } else if (current) {
+    result.nativeReturnAttempts = [];
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const returned = await clickBack();
+      result.nativeReturnAttempts.push(returned);
+      assert.equal(returned.point.region, 'no-drag', 'return button opts out of the native drag region');
+      assert.equal(returned.stillInPreferences, false, 'native mouse click leaves preferences');
+      assert.equal(returned.hasComposer, true, 'return restores the conversation composer');
+      await evaluate(() => document.querySelector('[contenteditable="true"]').focus());
+      await send('Input.insertText', { text: 'return-check' });
+      assert.ok(await evaluate(() => document.querySelector('[contenteditable="true"]').textContent.includes('return-check')), 'returned composer accepts typing');
+      await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'a', code: 'KeyA', windowsVirtualKeyCode: 65, modifiers: 2 });
+      await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'a', code: 'KeyA', windowsVirtualKeyCode: 65, modifiers: 2 });
+      await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Backspace', code: 'Backspace', windowsVirtualKeyCode: 8 });
+      await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Backspace', code: 'Backspace', windowsVirtualKeyCode: 8 });
+      if (attempt === 0) {
+        await capture('02-returned-chat.png');
+        // Exercise the native settings entry as well as in-app navigation.
+        // It reloads with initialRoute, which must not trap subsequent Back.
+        await send('Runtime.evaluate', { expression: 'window.electronBridge.sendMessageFromView({type:"show-settings"})' });
+        await waitFor(() => /Theme|主题/.test(document.querySelector('[data-teenet-preferences] main')?.innerText || ''), 60);
+      }
+    }
+    result.checks.push('Windows native return clicks restore an editable composer after both in-app and native settings entry');
     await navigate('/settings/appearance');
     await waitFor(() => /Theme|主题/.test(document.querySelector('[data-teenet-preferences] main')?.innerText || ''));
   }

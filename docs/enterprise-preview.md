@@ -1,6 +1,6 @@
 # Codex 精简版构建
 
-当前候选 `26.901.51231-b4`：补充注册器无变化时保留数组引用的修复，继续屏蔽宠物。Windows CI 34367229919 已通过。用户随后通过清空旧 `.codex`、仅放回 config、model 和 auth 恢复正常，未依赖 b4；不要求用户更换已经恢复工作的版本，旧状态中的具体触发文件仍未确定。
+当前候选 `26.901.51231-b5`：修复偏好页“返回对话”被 Windows 顶部拖动区域截走鼠标点击的问题，Windows 新包验证待完成。用户此前通过清理旧 `.codex` 恢复启动；这次按钮问题单独处理，不要求再次清理配置。继续屏蔽宠物并保留 b4 命令注册修复。
 
 依据 2026-09-08 周会，企业版保留对话、项目、归档、语音、外观、快捷键、模型切换、管理员预装插件及 Skill 创建，收起设置、编码环境、自主安装和高级控制入口。
 
@@ -8,7 +8,7 @@
 
 ## 固定构建输入
 
-当前构建 `26.901.51231-b4` 基于官方 Windows x64 MSIX `26.901.6511.0`，SHA-256 为 `fd9ae9eeeeaf11577191ce5a39d0b8f95fa73d591aa3a94f688b84d294d1fa85`。版本、来源与摘要固定在 `config/enterprise-preview.json`。验证结果和员工实际状态的回测边界见[交付记录](enterprise-change-inventory.md#7-验证与交付记录)。官方稳定下载地址会滚动更新；若摘要不符，构建立刻失败，必须提供保存的固定版本 MSIX，不能自动接受新包。
+当前构建 `26.901.51231-b5` 基于官方 Windows x64 MSIX `26.901.6511.0`，SHA-256 为 `fd9ae9eeeeaf11577191ce5a39d0b8f95fa73d591aa3a94f688b84d294d1fa85`。版本、来源与摘要固定在 `config/enterprise-preview.json`。验证结果和员工实际状态的回测边界见[交付记录](enterprise-change-inventory.md#7-验证与交付记录)。官方稳定下载地址会滚动更新；若摘要不符，构建立刻失败，必须提供保存的固定版本 MSIX，不能自动接受新包。
 
 `carrier` 仍使用已发布的 `offline-v26.810.52044-b1`，仅提供启动器、模型目录、Skill 种子和固定办公插件。构建删除载体的整套 `_internal/app`，换入官方新版 app（包括 EXE、CLI、原生模块和前端），再执行独立运行补丁与企业策略。原生组件不会与旧版混装。
 
@@ -16,7 +16,7 @@
 npm ci
 node scripts/build-enterprise-preview.mjs --source-msix /path/to/ChatGPT-26.901.6511.0-x64.msix --output dist/enterprise-current
 # Windows 上额外传 --installer 生成安装器，然后运行桌面验收
-node scripts/smoke-enterprise-preview.mjs dist/enterprise-current/codex-only-local-26.901.51231-b4 dist/enterprise-current/smoke
+node scripts/smoke-enterprise-preview.mjs dist/enterprise-current/codex-only-local-26.901.51231-b5 dist/enterprise-current/smoke
 ```
 
 新版适配保留原企业功能清单，并额外禁用上游新增的统一 Computer Use 插件、自动化应用工具插件、写作个性化插件及浏览器扩展/同步开关。`--enterprise` 不执行浏览器、Computer Use、工作环境和 Activity 入口的启用补丁；静态 gate 替换与运行时统一遵循企业策略。
@@ -34,6 +34,14 @@ node scripts/smoke-enterprise-preview.mjs dist/enterprise-current/codex-only-loc
 隐藏配置入口及限制应用内管理操作不等于操作系统级防篡改：会议要求保留完整访问和 Skill 创建，因此操作系统权限、程序执行及管理员配置文件保护仍需由受管终端策略落实。
 
 ## 历史依据
+
+### 2026-09-09 偏好页返回按钮的原生点击
+
+用户恢复启动后报告左上角“返回对话”无效。该按钮属于自定义 `preferences.js.txt`，位于顶部 Electron 拖动区域。原测试通过宿主路由消息进入偏好，随后用 DOM click 切换设置，没有实际点击返回按钮，遗漏了 Windows 原生命中测试。
+
+[原生鼠标对照 34368987734](https://github.com/TEENet-io/codex-kiosk/actions/runs/34368987734) 使用已验证 b4 安装包和测试提交 `119065d98a80aee6e27fd4d06f042844adb0a5fb`，通过 `ClientToScreen`、`SetCursorPos` 和 Windows 鼠标输入，在同一屏幕位置点击：原按钮计算样式 app-region 为 none，click 监听未触发，仍在偏好页；临时将按钮设为 no-drag、抬高 header 后，事件到达并返回可编辑对话。原来的 DOM 命中目标已是按钮，说明不需要更改导航地址；b5 最小修改只在按钮使用上游已有 `no-drag` 类。新包验证不注入临时修复样式，直接检查包内样式和两次原生点击，其中一次通过原生 show-settings 重新加载进入。
+
+[对照报告 10111314397](https://nightly.link/TEENet-io/codex-kiosk/actions/artifacts/10111314397.zip) 的 returnButtonBefore/After 保存坐标、计算样式及返回结果。after.clicked 为 2 是前后诊断在同一按钮上各装了一个监听器，不能理解为系统执行了两次点击。改动位于自有偏好页组件，未改上游路由或安装配置生命周期。
 
 ### 2026-09-09 员工清理旧状态后恢复
 

@@ -7,7 +7,7 @@ function TEENetPreferences() {
     if (!allowed) navigate('/settings/appearance', { replace: true });
   }, [allowed, navigate]);
   const button = (label, route) => $.jsx('button', {
-    type: 'button', className: 'rounded-lg px-4 py-2 text-sm hover:bg-token-bg-tertiary',
+    type: 'button', className: 'no-drag rounded-lg px-4 py-2 text-sm hover:bg-token-bg-tertiary',
     'aria-current': location.pathname === route ? 'page' : undefined,
     onClick: () => navigate(route), children: label,
   }, route);

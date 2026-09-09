@@ -60,6 +60,7 @@ if (current) {
 const settingsFile = current ? 'webview/assets/settings-page-ed0dbe72a147.js' : 'webview/assets/settings-page-B4j1j14I.js';
 const preferences = read(settingsFile);
 assert.ok(preferences.includes('export{TEENetPreferences as SettingsPage}'));
+assert.ok(preferences.includes("className: 'no-drag rounded-lg"), 'preference buttons receive native clicks inside the titlebar region');
 assert.ok(!preferences.includes('export{' + (current ? 'Wn' : 'Dn') + ' as SettingsPage}'));
 const registries = Object.entries(metadata.report).filter(([, report]) => report.commandArrays > 0);
 assert.ok(registries.some(([file]) => file.startsWith('.vite/')));
