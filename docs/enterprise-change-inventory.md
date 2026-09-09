@@ -180,6 +180,7 @@ ai-env-mgr 相关代码位于 `/root/pp_home/windows-pc/ai-env-mgr`。本次任�
 - 132 项脚本回归、18 项网关测试和网关构建通过；新安装包完整性、原生 CLI、静默安装、旧程序替换与用户配置/Skill 保留通过。
 - 新包英文/API Key 与中文/Provider bearer/宠物启动恢复两套页面检查通过，含聚焦输入框输入 `/model`；`rendererErrors=[]`、`consoleErrors=[]`，截图完整。宠物显示和收起保留。
 - 额外诊断 34339897643、34339998122 分别覆盖仅 bearer 和过期 ChatGPT 凭据下的中英文宠物恢复，均通过。原始 b1 的隔离界面也未完全复现员工现场，不能以这些合成测试保证其所有持久状态均正常；需员工安装 b2 回测。真实模型请求、语音通话和远程插件服务没有在本次使用占位凭据的检查中执行。
+- [补充交互验收 34342443362](https://github.com/TEENet-io/codex-kiosk/actions/runs/34342443362) 使用同一份已交付 b2 安装包，测试脚本提交 `62ac1a92b39a6b3d42eadff622297e7db7fe76ba`。中英文、过期 ChatGPT 凭据、宠物启动恢复两组全部通过：打开可见模型列表，DeepSeek → Kimi → DeepSeek 连续切换，随后验证偏好页与宠物显示/收起；两组 `rendererErrors=[]`、`consoleErrors=[]`。脚本适配新版菜单选中后保留强度弹窗的交互，并只通过调试协议返回可序列化的就绪状态；未修改分发包。[英文报告](https://nightly.link/TEENet-io/codex-kiosk/actions/artifacts/10100408543.zip)、[中文报告](https://nightly.link/TEENet-io/codex-kiosk/actions/artifacts/10100470531.zip)保留 7 天。
 - [下载安装器、便携包与报告](https://nightly.link/TEENet-io/codex-kiosk/actions/artifacts/10099713592.zip)（1,386,825,757 字节）；解压后运行 `codex-only-local-26.901.51231-b2-setup.exe`。[仅下载截图与验证报告](https://nightly.link/TEENet-io/codex-kiosk/actions/artifacts/10099679716.zip)。产物保留 14 天，未创建正式 Release。
 
 | b2 文件 | SHA-256 |
