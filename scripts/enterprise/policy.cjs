@@ -23,9 +23,12 @@
   const disabledFeatures = Object.freeze([
     'browserAgent', 'browserAgentAvailable', 'browserPane', 'inAppBrowserUse',
     'inAppBrowserUseAllowed', 'externalBrowserUse', 'externalBrowserUseAllowed',
-    'computerUse', 'computerUseNodeRepl', 'avatarOverlay', 'ambientSuggestions',
+    'computerUse', 'computerUseNodeRepl', 'computerUseAutoInstall', 'browserUseTinysky',
+    'browserExtensions', 'browserSettingsCloudSync', 'inAppBrowserUseHistory', 'cuaPIP',
+    'codexAppTools', 'userWriting',
+    'avatarOverlay', 'ambientSuggestions',
   ]);
-  const removedPlugins = Object.freeze(['browser', 'chrome', 'computer-use']);
+  const removedPlugins = Object.freeze(['browser', 'chrome', 'computer-use', 'unified-computer-use', 'codex-app-tools', 'user-writing']);
   const approvedBundledPlugins = Object.freeze(['documents', 'spreadsheets', 'presentations', 'latex', 'deep-research', 'visualize', 'sites']);
   const blockedNativeHandlers = Object.freeze([
     'save-codex-managed-remote-ssh-connections', 'set-remote-connection-auto-connect',

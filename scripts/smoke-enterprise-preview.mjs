@@ -12,6 +12,7 @@ const asar = require('@electron/asar');
 
 if (process.platform !== 'win32') throw new Error('Enterprise desktop smoke requires Windows');
 let root = path.resolve(process.argv[2]);
+const current = JSON.parse(fs.readFileSync(path.join(root, 'enterprise-build.json'), 'utf8')).base.appVersion === '26.901.51231';
 const output = path.resolve(process.argv[3] || path.join(root, '..', 'smoke'));
 fs.mkdirSync(output, { recursive: true });
 const isolated = fs.mkdtempSync(path.join(os.tmpdir(), 'teenet-smoke-'));
@@ -50,7 +51,7 @@ if (!installed) {
 const archive = path.join(root, '_internal/app/resources/app.asar');
 const instrumentation = path.join(isolated, 'instrumentation');
 asar.extractAll(archive, instrumentation);
-const mainPath = path.join(instrumentation, '.vite/build/main-C8eoOzMw.js');
+const mainPath = path.join(instrumentation, current ? '.vite/build/main-DpnWwRdP.js' : '.vite/build/main-C8eoOzMw.js');
 const productionMain = fs.readFileSync(mainPath, 'utf8');
 const devtoolsAnchor = 'devTools:this.options.allowDevtools';
 assert.equal(productionMain.split(devtoolsAnchor).length - 1, 2, 'pinned window instrumentation anchors');
@@ -163,10 +164,10 @@ try {
   assert.ok(!homeText.includes('Introducing GPT-'), 'model promotion removed');
   result.checks.push('employee home without scheduled navigation, environment setup or model promotion');
   const navigate = async route => {
-    await evaluate(async route => {
-      const app = await import('/assets/app-initial-TxV8Ik1J.js');
-      app.BTt.dispatchHostMessage({ type: 'navigate-to-route', path: route });
-    }, route);
+    await evaluate(async ({ route, current }) => {
+      const app = await import(current ? '/assets/app-initial-f87238153a19.js' : '/assets/app-initial-TxV8Ik1J.js');
+      app[current ? 'Kun' : 'BTt'].dispatchHostMessage({ type: 'navigate-to-route', path: route });
+    }, { route, current });
   };
   await navigate('/settings/appearance');
   await waitFor(() => !!document.querySelector('[data-teenet-preferences]'));

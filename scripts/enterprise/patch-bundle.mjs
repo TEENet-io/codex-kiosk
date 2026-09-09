@@ -45,9 +45,12 @@ function replaceExact(source, needle, replacement, label, count = 1) {
   return source.split(needle).join(replacement);
 }
 
-export function patchPinnedStartupControls(source, kind) {
+export function patchPinnedStartupControls(source, kind, version = '26.810.52044') {
   if (kind === 'native') {
     return replaceExact(source, 'async getState(){let e=await this.getService();e.start();', 'async getState(){return this.deviceState;/*teenet:no-micro-hardware*/let e=await this.getService();e.start();', 'optional USB controller discovery');
+  }
+  if (version === '26.901.51231') {
+    return replaceExact(source, 'dIi=Xy(Q,(e,{get:t})=>{if(e==null||e!==`local`)', 'dIi=Xy(Q,(e,{get:t})=>{return uIi;/*teenet:full-access-no-setup*/if(e==null||e!==`local`)', 'Windows sandbox setup requirement');
   }
   source = replaceExact(source, 'function cNc(e){let t=(0,lNc.c)(26)', 'function cNc(e){return null;/*teenet:no-model-promotion*/let t=(0,lNc.c)(26)', 'model promotion modal');
   // The enterprise app-server always uses the requested full-access default;
@@ -90,12 +93,13 @@ export function patchSemanticControls(source, sourceType = 'module') {
 
 export function patchExtractedBundle(root) {
   const pkg = JSON.parse(fs.readFileSync(path.join(root, 'package.json'), 'utf8'));
-  if (pkg.version !== '26.810.52044') throw new Error('Unsupported enterprise baseline: ' + pkg.version);
+  const current = pkg.version === '26.901.51231';
+  if (!current && pkg.version !== '26.810.52044') throw new Error('Unsupported enterprise baseline: ' + pkg.version);
   const reports = {};
-  const files = [
-    '.vite/build/main-C8eoOzMw.js', '.vite/build/src-DhHWkTcG.js',
-    'webview/assets/app-initial-TxV8Ik1J.js',
-  ];
+  const mainFile = current ? '.vite/build/main-DpnWwRdP.js' : '.vite/build/main-C8eoOzMw.js';
+  const rendererFile = current ? 'webview/assets/app-initial-f87238153a19.js' : 'webview/assets/app-initial-TxV8Ik1J.js';
+  const settingsFile = current ? 'webview/assets/settings-page-ed0dbe72a147.js' : 'webview/assets/settings-page-B4j1j14I.js';
+  const files = [mainFile, current ? '.vite/build/src-VqXTPopo.js' : '.vite/build/src-DhHWkTcG.js', rendererFile, ...(current ? ['webview/assets/app-primary-428a0a65766f.js'] : [])];
   // Discover shared command registries by structure, not guessed minified names.
   for (const dir of ['.vite/build', 'webview/assets']) {
     for (const name of fs.readdirSync(path.join(root, dir))) {
@@ -118,40 +122,44 @@ export function patchExtractedBundle(root) {
         if(denied)return Promise.resolve({id:e.id,error:{code:-32001,message:denied}});
       `, 'native RPC boundary ' + rel);
     }
-    if (rel === '.vite/build/main-C8eoOzMw.js') {
+    if (rel === mainFile) {
       source = patchPinnedStartupControls(source, 'native');
       source = 'const _teenetPolicy=require("../../teenet/policy.cjs");\n' + source;
-      source = replaceExact(source, 'k=(e,t)=>{let r=n.Ut({commandId:e});', 'k=(e,t)=>{const hidden=_teenetPolicy.blockedMenuItem(e);if(hidden)return hidden;let r=n.Ut({commandId:e});', 'native menu references to removed commands');
-      source = replaceExact(source, 'function Tr(){return xr}', 'function Tr(){return _teenetPolicy.applyFeaturePolicy(xr)}', 'desktop feature reader');
-      source = replaceExact(source, 'function Or(e){', 'function Or(e){e=_teenetPolicy.applyFeaturePolicy(e);', 'desktop feature updates');
-      source = replaceExact(source, 'async function Hl(e){let t=(await Ul(e)).browserExtensions', 'async function Hl(e){return [];/*teenet:no-browser-extension-sync*/let t=(await Ul(e)).browserExtensions', 'browser extension synchronization');
+      source = replaceExact(source, current ? 'A=(e,t)=>{let r=n.Ht({commandId:e});' : 'k=(e,t)=>{let r=n.Ut({commandId:e});', current ? 'A=(e,t)=>{const hidden=_teenetPolicy.blockedMenuItem(e);if(hidden)return hidden;let r=n.Ht({commandId:e});' : 'k=(e,t)=>{const hidden=_teenetPolicy.blockedMenuItem(e);if(hidden)return hidden;let r=n.Ut({commandId:e});', 'native menu references to removed commands');
+      source = replaceExact(source, current ? 'function U(){return br}' : 'function Tr(){return xr}', current ? 'function U(){return _teenetPolicy.applyFeaturePolicy(br)}' : 'function Tr(){return _teenetPolicy.applyFeaturePolicy(xr)}', 'desktop feature reader');
+      source = replaceExact(source, current ? 'function Dr(e){' : 'function Or(e){', current ? 'function Dr(e){e=_teenetPolicy.applyFeaturePolicy(e);' : 'function Or(e){e=_teenetPolicy.applyFeaturePolicy(e);', 'desktop feature updates');
+      source = replaceExact(source, current ? 'async function So(e){let t=(await Co(e)).browserExtensions' : 'async function Hl(e){let t=(await Ul(e)).browserExtensions', current ? 'async function So(e){return [];/*teenet:no-browser-extension-sync*/let t=(await Co(e)).browserExtensions' : 'async function Hl(e){return [];/*teenet:no-browser-extension-sync*/let t=(await Ul(e)).browserExtensions', 'browser extension synchronization');
       // The old browser reconciliation deletes MCP settings when capabilities
       // are off. Enterprise disables its runtime through CLI overrides instead
       // and leaves the administrator's config file untouched.
       const ast = parse(source, { ecmaVersion: 'latest', sourceType: 'script' });
       let reconcile;
-      walk(ast, node => { if (node.type === 'FunctionDeclaration' && node.id?.name === 'ys' && node.async) reconcile = node; });
+      walk(ast, node => { if (node.type === 'FunctionDeclaration' && node.id?.name === (current ? 'Ys' : 'ys') && node.async) reconcile = node; });
       if (!reconcile || !source.slice(reconcile.start, reconcile.end).includes('config/batchWrite')) throw new Error('Browser config reconciliation drift');
       source = source.slice(0, reconcile.body.start + 1) + 'return;/*teenet:no-browser-config-mutation*/' + source.slice(reconcile.body.start + 1);
-      source = replaceExact(source, 'async handleMessage(e,t){if(_I(t))', `async handleMessage(e,t){
+      source = replaceExact(source, current ? 'async handleMessage(e,t){if(xR(t))' : 'async handleMessage(e,t){if(_I(t))', `async handleMessage(e,t){
         if(_teenetPolicy.messageDenial(t))return;
         if(t.type==='show-settings'||t.type==='open-keyboard-shortcuts'){
           const w=require('electron').BrowserWindow.fromWebContents(e);
           if(w){const u=new URL(w.getURL());u.searchParams.set('initialRoute',t.type==='open-keyboard-shortcuts'?'/settings/keyboard-shortcuts':'/settings/appearance');await w.loadURL(u.toString());}return;
         }
-        if(_I(t))`, 'desktop message handler');
+        if(${current ? 'xR' : '_I'}(t))`, 'desktop message handler');
       source = replaceExact(source, 'case`mcp-request`:{', `case\`mcp-request\`:{
         const denied=_teenetPolicy.requestDenial(t.request);
         if(denied){this.sendAppServerResponseToView(e,t.hostId,t.request.method,{id:t.request.id,error:{code:-32001,message:denied}},t.request.trace,t.priority);break;}
       `, 'renderer RPC boundary');
     }
-    if (rel === 'webview/assets/app-initial-TxV8Ik1J.js') {
-      source = patchPinnedStartupControls(source, 'renderer');
+    if (rel === rendererFile) {
+      source = patchPinnedStartupControls(source, 'renderer', pkg.version);
       source = 'import "./teenet-policy.js";\n' + source;
       source = replaceExact(source, 'workspaceRootsIsLoading:u}){return e.isLoading?', 'workspaceRootsIsLoading:u}){return globalThis.TEENetPolicy.onboardingTarget(e);/*teenet:managed-onboarding*/return e.isLoading?', 'managed onboarding decision');
       source = replaceExact(source, 'e.Fragment=n,e.jsx=r,e.jsxs=r', 'e.Fragment=n,e.jsx=globalThis.TEENetPolicy.createJsxGuard(r),e.jsxs=e.jsx', 'React JSX boundary');
-      source = replaceExact(source, 'ims=`general-settings`', 'ims=`appearance`', 'default preferences route');
-      source = replaceExact(source, '{slug:n}=e,r=tdl[n],i;', '{slug:n}=e,r=globalThis.TEENetPolicy.routeAllowed("/settings/"+n)?tdl[n]:()=>null,i;', 'settings child route guard');
+      source = replaceExact(source, current ? 'bSo=`general-settings`' : 'ims=`general-settings`', current ? 'bSo=`appearance`' : 'ims=`appearance`', 'default preferences route');
+      source = replaceExact(source, current ? '{slug:n}=e,r=Wwo[n],i;' : '{slug:n}=e,r=tdl[n],i;', '{slug:n}=e,r=globalThis.TEENetPolicy.routeAllowed("/settings/"+n)?' + (current ? 'Wwo' : 'tdl') + '[n]:()=>null,i;', 'settings child route guard');
+    }
+    if (current && rel === 'webview/assets/app-primary-428a0a65766f.js') {
+      source = replaceExact(source, 'function Wnn(e){', 'function Wnn(e){return null;/*teenet:no-model-promotion*/', 'model promotion modal');
+      source = replaceExact(source, 'function vnn(e){', 'function vnn(e){return null;/*teenet:no-fast-promotion*/', 'fast mode promotion modal');
     }
     parse(source, { ecmaVersion: 'latest', sourceType: rel.startsWith('webview/') ? 'module' : 'script', allowReturnOutsideFunction: true });
     fs.writeFileSync(file, marker + '\n' + source);
@@ -159,9 +167,11 @@ export function patchExtractedBundle(root) {
   }
   if (!Object.entries(reports).some(([name, r]) => name.startsWith('webview/') && r.commandArrays > 0)) throw new Error('Renderer command registry not found');
   if (!Object.entries(reports).some(([name, r]) => name.startsWith('.vite/') && r.commandArrays > 0)) throw new Error('Native command registry not found');
-  const settings = path.join(root, 'webview/assets/settings-page-B4j1j14I.js');
+  const settings = path.join(root, settingsFile);
   let source = fs.readFileSync(settings, 'utf8');
-  source = replaceExact(source, 'export{Dn as SettingsPage};', fs.readFileSync(path.join(here, 'preferences.js.txt'), 'utf8') + '\nexport{TEENetPreferences as SettingsPage};', 'preferences component export');
+  let preferences = fs.readFileSync(path.join(here, 'preferences.js.txt'), 'utf8');
+  if (current) preferences = preferences.replace('const location = f();', 'const location = A();').replace('const navigate = me();', 'const navigate = ee();').replace('$.jsx(ft, {})', '$.jsx(oe, {})');
+  source = replaceExact(source, current ? 'export{Wn as SettingsPage};' : 'export{Dn as SettingsPage};', preferences + '\nexport{TEENetPreferences as SettingsPage};', 'preferences component export');
   parse(source, { ecmaVersion: 'latest', sourceType: 'module' });
   fs.writeFileSync(settings, marker + '\n' + source);
   fs.copyFileSync(path.join(here, 'policy.cjs'), path.join(root, 'webview/assets/teenet-policy.js'));

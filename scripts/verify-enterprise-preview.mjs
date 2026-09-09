@@ -26,19 +26,32 @@ for (const dir of ['_internal/patches', '_internal/app/patches']) {
 }
 assert.ok(read('.vite/build/early-bootstrap.js').includes('require("../../teenet/runtime.cjs")'));
 assert.ok(read('teenet/toml/package.json').includes('"name": "smol-toml"'));
-const main = read('.vite/build/main-C8eoOzMw.js');
+const current = metadata.base.appVersion === '26.901.51231';
+const main = read(current ? '.vite/build/main-DpnWwRdP.js' : '.vite/build/main-C8eoOzMw.js');
 assert.ok(main.includes('_teenetPolicy.requestDenial(t.request)'));
 assert.ok(main.includes('_teenetPolicy.messageDenial(t)'));
-assert.ok(main.includes('return _teenetPolicy.applyFeaturePolicy(xr)'));
+assert.ok(main.includes('return _teenetPolicy.applyFeaturePolicy(' + (current ? 'br' : 'xr') + ')'));
 assert.ok(main.includes('_teenetPolicy.blockedMenuItem(e)'));
-const renderer = read('webview/assets/app-initial-TxV8Ik1J.js');
+assert.ok(main.includes('teenet:no-micro-hardware'));
+assert.ok(main.includes('teenet:no-browser-config-mutation'));
+assert.ok(main.includes('teenet:no-browser-extension-sync'));
+const renderer = read(current ? 'webview/assets/app-initial-f87238153a19.js' : 'webview/assets/app-initial-TxV8Ik1J.js');
 assert.ok(renderer.includes('globalThis.TEENetPolicy.createJsxGuard(r)'));
 assert.ok(renderer.includes('globalThis.TEENetPolicy.onboardingTarget(e)'));
-assert.ok(renderer.includes('teenet:no-model-promotion'));
+assert.ok((current ? read('webview/assets/app-primary-428a0a65766f.js') : renderer).includes('teenet:no-model-promotion'));
 assert.ok(renderer.includes('teenet:full-access-no-setup'));
-const preferences = read('webview/assets/settings-page-B4j1j14I.js');
+if (current) {
+  const primary = read('webview/assets/app-primary-428a0a65766f.js');
+  const surfaces = renderer + primary;
+  for (const name of ['codex-only-startup', 'codex-only-selector', 'codex-only-transition', 'local-tasks-only-composer', 'cloud-task-schema-disabled', 'cloud-task-runtime-blocked', 'cloud-task-list-disabled', 'cloud-task-detail-disabled', 'offline-query-network-mode', 'offline-mutation-network-mode', 'model-id-display-name-fallback', 'archived-threads-cache-fallback']) {
+    assert.ok(surfaces.includes('/*codex-offline:' + name + '*/'), 'retained offline contract: ' + name);
+  }
+  assert.ok(read('.vite/build/src-VqXTPopo.js').includes('internalRequestDenial(e)'));
+}
+const settingsFile = current ? 'webview/assets/settings-page-ed0dbe72a147.js' : 'webview/assets/settings-page-B4j1j14I.js';
+const preferences = read(settingsFile);
 assert.ok(preferences.includes('export{TEENetPreferences as SettingsPage}'));
-assert.ok(!preferences.includes('export{Dn as SettingsPage}'));
+assert.ok(!preferences.includes('export{' + (current ? 'Wn' : 'Dn') + ' as SettingsPage}'));
 const registries = Object.entries(metadata.report).filter(([, report]) => report.commandArrays > 0);
 assert.ok(registries.some(([file]) => file.startsWith('.vite/')));
 assert.ok(registries.some(([file]) => file.startsWith('webview/')));
@@ -48,7 +61,7 @@ for (const [file] of registries) {
   assert.ok(!source.includes('id:`openBrowserTab`,titleIntlId:'), 'browser command survived in ' + file);
   assert.ok(source.includes('id:`keyboardShortcuts`,titleIntlId:'), 'keyboard help removed in ' + file);
 }
-for (const file of [...Object.keys(metadata.report), 'webview/assets/settings-page-B4j1j14I.js', 'webview/assets/teenet-policy.js']) {
+for (const file of [...Object.keys(metadata.report), settingsFile, 'webview/assets/teenet-policy.js']) {
   parse(read(file), { ecmaVersion: 'latest', sourceType: file.startsWith('webview/') ? 'module' : 'script', allowReturnOutsideFunction: true });
 }
 const pluginsRoot = path.join(root, '_internal/app/resources/plugins/openai-bundled');
