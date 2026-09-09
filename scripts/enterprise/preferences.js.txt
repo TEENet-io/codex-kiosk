@@ -19,7 +19,6 @@ function TEENetPreferences() {
         button('返回对话', '/'), $.jsx('h1', { className: 'text-base font-semibold', children: '外观与快捷键' }),
       ] }),
       $.jsx('nav', { 'aria-label': '个人偏好', className: 'flex flex-wrap gap-2 p-4', children: policy.preferences.map(([slug, title]) => button(title, '/settings/' + slug)) }),
-      $.jsx('div', { className: 'px-6 pb-3 text-sm text-token-text-secondary', children: '默认权限：完整访问 · 模型与连接由管理员统一配置' }),
       $.jsx('main', { className: 'min-h-0 flex-1 overflow-auto p-4', children: allowed ? $.jsx(Q.Suspense, { fallback: $.jsx('div', { children: '正在加载…' }), children: $.jsx(ft, {}) }) : null }),
     ],
   });

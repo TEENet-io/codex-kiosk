@@ -9,7 +9,7 @@
     '2106641128': 'experimental settings', '3693343337': 'model settings',
     '3026692602': 'workspace dependencies', '410262010': 'browser agent',
     '410065390': 'Chrome mentions', '4250630194': 'in-app browser',
-    '2177625257': 'browser import', '2679188970': 'avatar overlay',
+    '2177625257': 'browser import',
     '1506311413': 'Computer Use', '2171042036': 'desktop control',
     '3903563814': 'browser sites', '3326157269': 'external config import',
     '2900529421': 'external config', '2711149772': 'external config',
@@ -26,7 +26,7 @@
     'computerUse', 'computerUseNodeRepl', 'computerUseAutoInstall', 'browserUseTinysky',
     'browserExtensions', 'browserSettingsCloudSync', 'inAppBrowserUseHistory', 'cuaPIP',
     'codexAppTools', 'userWriting',
-    'avatarOverlay', 'ambientSuggestions',
+    'ambientSuggestions',
   ]);
   const removedPlugins = Object.freeze(['browser', 'chrome', 'computer-use', 'unified-computer-use', 'codex-app-tools', 'user-writing']);
   const approvedBundledPlugins = Object.freeze(['documents', 'spreadsheets', 'presentations', 'latex', 'deep-research', 'visualize', 'sites']);
@@ -40,17 +40,17 @@
   ]);
   const preferences = Object.freeze([
     ['appearance', '外观'], ['voice', '语音'],
-    ['keyboard-shortcuts', '快捷键'], ['data-controls', '归档对话'],
+    ['keyboard-shortcuts', '快捷键'], ['data-controls', '归档对话'], ['pets', '宠物'],
   ]);
   const blockedCommands = new Set([
     'settings', 'codexMicroSettings', 'mcpSettings', 'personalitySettings',
-    'importExternalAgent', 'logOut', 'openPetOverlay', 'tuckAwayPetOverlay',
+    'importExternalAgent', 'logOut',
     'manageTasks', 'openControlWindow', 'toggleDebugModal', 'openBrowserTab',
     'toggleBrowserPanel', 'focusBrowserAddressBar', 'navigateBrowserBack',
     'navigateBrowserForward', 'openReviewTab', 'toggleReviewTab', 'toggleReviewPanel',
     'toggleWorktreeMode', 'composer.toggleWorktreeMode', 'composer.toggleWorkRunLocation',
     'composer.captureAppshot', 'switchToChat', 'switchToWork',
-    'switchToMode1', 'switchToMode2', 'openAvatarOverlay', 'togglePriorityFilter',
+    'switchToMode1', 'switchToMode2', 'togglePriorityFilter',
     'temporaryChat', 'quickChat', 'focusQuickChat',
   ]);
   function commandAllowed(id) {
@@ -94,7 +94,7 @@
     const type = message?.type;
     if (typeof type !== 'string') return null;
     if (['open-config-toml', 'open-extension-settings', 'open-browser-tab', 'open-browser-in-main-window', 'reload-bundled-plugins', 'settings-delete-targeted'].includes(type)) return reason;
-    if (/^(?:pending-worktree-|avatar-overlay-|browser-sidebar-|browser-use-|computer-use-|computer-history\/)/.test(type)) return reason;
+    if (/^(?:pending-worktree-|browser-sidebar-|browser-use-|computer-use-|computer-history\/)/.test(type)) return reason;
     if (type === 'navigate-to-route' && !routeAllowed(message.path)) return reason;
     return null;
   }
@@ -155,7 +155,7 @@
       return typeof value === 'object' && hidden.has(value);
     }
     return function guarded(type, props, key) {
-      if (props && 'onOpenSettings' in props && 'onLogOut' in props) props = { ...props, onOpenProfile: undefined, onOpenWorkspaceSettings: undefined, onLogOut: undefined, onTogglePet: undefined, onCopyUserId: undefined, identityItems: null };
+      if (props && 'onOpenSettings' in props && 'onLogOut' in props) props = { ...props, onOpenProfile: undefined, onOpenWorkspaceSettings: undefined, onLogOut: undefined, onCopyUserId: undefined, identityItems: null };
       if (typeof props?.path === 'string' && props.element && props.path !== '/settings' && !routeAllowed(props.path.startsWith('/') ? props.path : '/' + props.path)) {
         return jsx(type, { ...props, element: jsx('div', { role: 'status', className: 'p-6', children: reason }) }, key);
       }

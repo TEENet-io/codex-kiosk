@@ -28,12 +28,12 @@ test('restricted settings cannot be reached through encoded or nested routes', (
 });
 
 test('voice and model shortcuts remain while advanced commands are removed', () => {
-  for (const id of ['settings', 'logOut', 'openBrowserTab', 'toggleWorktreeMode', 'git.createPullRequest', 'openPetOverlay', 'manageTasks']) assert.equal(policy.commandAllowed(id), false, id);
+  for (const id of ['settings', 'logOut', 'openBrowserTab', 'toggleWorktreeMode', 'git.createPullRequest', 'manageTasks']) assert.equal(policy.commandAllowed(id), false, id);
   for (const id of ['globalDictationHold', 'globalDictationToggle', 'keyboardShortcuts', 'composer.openModelPicker', 'openSkills', 'openFolder', 'theme']) assert.equal(policy.commandAllowed(id), true, id);
 });
 
 test('browser control and configuration entry messages are denied, normal file use remains', () => {
-  for (const type of ['open-config-toml', 'open-extension-settings', 'pending-worktree-create', 'avatar-overlay-open', 'open-browser-tab']) assert.ok(policy.messageDenial({ type }), type);
+  for (const type of ['open-config-toml', 'open-extension-settings', 'pending-worktree-create', 'open-browser-tab']) assert.ok(policy.messageDenial({ type }), type);
   for (const type of ['fetch', 'open-file', 'open-keyboard-shortcuts']) assert.equal(policy.messageDenial({ type }), null, type);
 });
 
@@ -140,4 +140,20 @@ test('native bundled marketplace trust handles Windows short and long aliases of
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, '../enterprise/native-policy.cjs'), 'utf8'), context);
   assert.equal(context.exports.internalRequestDenial({ method: 'marketplace/add', params: { source: 'C:/Users/runneradmin/codex/.tmp/bundled-marketplaces/openai-bundled' } }), null);
   assert.ok(context.exports.internalRequestDenial({ method: 'marketplace/add', params: { source: 'C:/Downloads/untrusted' } }));
+});
+
+
+test('pets remain available through preferences, native messages and profile menu', () => {
+  assert.equal(policy.routeAllowed('/settings/pets'), true);
+  for (const id of ['openPetOverlay', 'tuckAwayPetOverlay', 'openAvatarOverlay']) assert.equal(policy.commandAllowed(id), true, id);
+  for (const type of ['avatar-overlay-open', 'avatar-overlay-close', 'avatar-overlay-set-avatar']) assert.equal(policy.messageDenial({ type }), null, type);
+  assert.equal(policy.applyGatePolicy({ '2679188970': true })['2679188970'], true);
+  assert.equal(policy.applyFeaturePolicy({ avatarOverlay: true }).avatarOverlay, true);
+  const toggle = () => {};
+  const jsx = policy.createJsxGuard((type, props) => ({ type, props }));
+  const menu = jsx('ProfileMenu', { onOpenSettings() {}, onLogOut() {}, onTogglePet: toggle });
+  assert.equal(menu.props.onTogglePet, toggle);
+  assert.equal(menu.props.onLogOut, undefined, 'account management stays blocked');
+  assert.equal(policy.routeAllowed('/settings/personalization'), false);
+  assert.ok(policy.messageDenial({ type: 'computer-use-start' }));
 });

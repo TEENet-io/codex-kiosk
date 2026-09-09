@@ -22,10 +22,10 @@ test('hidden sidebar actions preserve the new native context-menu child element 
   assert.equal(jsx('nav', { children: [action, voice] }).props.children[1], voice, 'adjacent normal action survives');
 });
 
-test('26.901 command aliases cannot reopen Work, pet, activity or uncollected temporary chats', () => {
+test('26.901 command aliases cannot reopen Work, activity or uncollected temporary chats', () => {
   const policy = require('../enterprise/policy.cjs');
-  for (const id of ['switchToMode1', 'switchToMode2', 'openAvatarOverlay', 'togglePriorityFilter', 'temporaryChat', 'quickChat', 'focusQuickChat']) assert.equal(policy.commandAllowed(id), false, id);
-  for (const id of ['switchToMode3', 'newTask', 'keyboardShortcuts', 'globalDictationHold']) assert.equal(policy.commandAllowed(id), true, id);
+  for (const id of ['switchToMode1', 'switchToMode2', 'togglePriorityFilter', 'temporaryChat', 'quickChat', 'focusQuickChat']) assert.equal(policy.commandAllowed(id), false, id);
+  for (const id of ['openAvatarOverlay', 'switchToMode3', 'newTask', 'keyboardShortcuts', 'globalDictationHold']) assert.equal(policy.commandAllowed(id), true, id);
 });
 
 test('Owl CLI uses the permission-profile default without conflicting legacy sandbox overrides', () => {
