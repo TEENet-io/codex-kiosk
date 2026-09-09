@@ -81,3 +81,26 @@ test('26.901 cloud execution cannot bypass the local-only thread target schema',
   assert.match(run({ data: { target: { type: 'chatgptWorkCloud' } } }).error, /disabled/);
   assert.equal(run({ data: { target: { type: 'project' } } }), 'local');
 });
+
+test('MSIX runtime preparation removes deep control dependencies and preserves shared Node modules', async () => {
+  const os = require('node:os');
+  const { prepareRuntime, verifyRuntimePaths } = await import('../enterprise/prepare-runtime.mjs');
+  const root = fs.mkdtempSync(path.join(os.tmpdir(), 'teenet-msix-'));
+  const app = path.join(root, '_internal/app');
+  const write = (relative, value) => { const file = path.join(app, relative); fs.mkdirSync(path.dirname(file), { recursive: true }); fs.writeFileSync(file, value); };
+  try {
+    write('resources/cua_node/bin/node.exe', 'shared runtime');
+    write('resources/cua_node/bin/node_modules/%40oai/sky/dist/cache/' + 'nested/'.repeat(30) + 'tslib.js', 'control only');
+    write('resources/cua_node/bin/node_modules/sharp/index.js', 'office dependency');
+    write('resources/app.asar.unpacked/node_modules/%40worklouder/device/node_modules/%40serialport/bindings/bindings.node', 'original native module');
+    write('resources/cua_node/bin/node_modules/%40statsig/client/%24_StatsigGlobal.js', 'statsig global');
+    assert.throws(() => verifyRuntimePaths(root), /path|Encoded/);
+    const report = prepareRuntime(app);
+    assert.equal(report.removed.length, 1);
+    assert.equal(fs.readFileSync(path.join(app, 'resources/app.asar.unpacked/node_modules/@worklouder/device/node_modules/@serialport/bindings/bindings.node'), 'utf8'), 'original native module');
+    assert.equal(fs.readFileSync(path.join(app, 'resources/cua_node/bin/node_modules/sharp/index.js'), 'utf8'), 'office dependency');
+    assert.ok(fs.existsSync(path.join(app, 'resources/cua_node/bin/node_modules/@statsig/client/$_StatsigGlobal.js')));
+    assert.doesNotThrow(() => verifyRuntimePaths(root));
+    assert.deepEqual(prepareRuntime(app), { removed: [], renamed: 0 });
+  } finally { fs.rmSync(root, { recursive: true, force: true }); }
+});

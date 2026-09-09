@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import crypto from 'node:crypto';
 import { createRequire } from 'node:module';
 import { parse } from 'acorn';
+import { verifyRuntimePaths } from './enterprise/prepare-runtime.mjs';
 const require = createRequire(import.meta.url);
 const asar = require('@electron/asar');
 const policy = require('./enterprise/policy.cjs');
@@ -41,6 +42,7 @@ assert.ok(renderer.includes('globalThis.TEENetPolicy.onboardingTarget(e)'));
 assert.ok((current ? read('webview/assets/app-primary-428a0a65766f.js') : renderer).includes('teenet:no-model-promotion'));
 assert.ok(renderer.includes('teenet:full-access-no-setup'));
 if (current) {
+  verifyRuntimePaths(root);
   const primary = read('webview/assets/app-primary-428a0a65766f.js');
   const surfaces = renderer + primary;
   for (const name of ['codex-only-startup', 'codex-only-selector', 'codex-only-transition', 'local-tasks-only-composer', 'cloud-task-schema-disabled', 'cloud-task-runtime-blocked', 'cloud-task-list-disabled', 'cloud-task-detail-disabled', 'offline-query-network-mode', 'offline-mutation-network-mode', 'model-id-display-name-fallback', 'archived-threads-cache-fallback']) {
