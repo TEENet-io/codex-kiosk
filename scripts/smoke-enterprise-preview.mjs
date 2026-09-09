@@ -12,6 +12,9 @@ const asar = require('@electron/asar');
 const diagnosticAuth = process.argv[4];
 if (diagnosticAuth) assert.ok(['control', 'apikey', 'bearer-only', 'stale-chatgpt'].includes(diagnosticAuth));
 const customCatalog = diagnosticAuth && diagnosticAuth !== 'control';
+const diagnosticScenario = process.argv[5] || 'empty-en';
+assert.ok(['empty-en', 'empty-zh', 'project-en', 'project-zh'].includes(diagnosticScenario));
+const diagnosticLocale = diagnosticScenario.endsWith('-zh') ? 'zh-CN' : 'en-US';
 
 if (process.platform !== 'win32') throw new Error('Enterprise desktop smoke requires Windows');
 let root = path.resolve(process.argv[2]);
@@ -21,6 +24,16 @@ fs.mkdirSync(output, { recursive: true });
 const isolated = fs.mkdtempSync(path.join(os.tmpdir(), 'teenet-smoke-'));
 const home = path.join(isolated, 'codex');
 fs.mkdirSync(home, { recursive: true });
+if (diagnosticAuth && diagnosticScenario.startsWith('project-')) {
+  const project = path.join(isolated, 'employee-project');
+  fs.mkdirSync(project);
+  execFileSync('git', ['init', project], { stdio: 'ignore' });
+  fs.writeFileSync(path.join(home, '.codex-global-state.json'), JSON.stringify({
+    'electron-saved-workspace-roots': [project],
+    'active-workspace-roots': [project],
+    'electron-workspace-root-labels': { [project]: 'Employee project fixture' },
+  }));
+}
 let catalog = path.join(root, '_internal/models-api.json').replaceAll('\\', '/');
 if (customCatalog) {
   const { gatewayCatalogFixture } = await import('./test/fixtures/gateway-catalog.mjs');
@@ -80,7 +93,13 @@ const mainPath = path.join(instrumentation, current ? '.vite/build/main-DpnWwRdP
 const productionMain = fs.readFileSync(mainPath, 'utf8');
 const devtoolsAnchor = 'devTools:this.options.allowDevtools';
 assert.equal(productionMain.split(devtoolsAnchor).length - 1, 2, 'pinned window instrumentation anchors');
-fs.writeFileSync(mainPath, productionMain.replaceAll(devtoolsAnchor, 'devTools:true'));
+let diagnosticMain = productionMain.replaceAll(devtoolsAnchor, 'devTools:true');
+if (diagnosticAuth && current) {
+  const localeAnchor = '"locale-info":async()=>({ideLocale:l.app.getLocale(),systemLocale:l.app.getSystemLocale()})';
+  assert.equal(diagnosticMain.split(localeAnchor).length - 1, 1, 'pinned locale diagnostic anchor');
+  diagnosticMain = diagnosticMain.replace(localeAnchor, '"locale-info":async()=>({ideLocale:' + JSON.stringify(diagnosticLocale) + ',systemLocale:' + JSON.stringify(diagnosticLocale) + '})');
+}
+fs.writeFileSync(mainPath, diagnosticMain);
 if (diagnosticAuth && current) {
   const rendererPath = path.join(instrumentation, 'webview/assets/app-initial-f87238153a19.js');
   const renderer = fs.readFileSync(rendererPath, 'utf8');
@@ -165,6 +184,8 @@ try {
   await send('Runtime.enable');
   if (diagnosticAuth) {
     result.diagnosticAuth = diagnosticAuth;
+    result.diagnosticScenario = diagnosticScenario;
+    result.diagnosticLocale = diagnosticLocale;
   }
   await send('Runtime.runIfWaitingForDebugger');
   await send('Page.bringToFront');
@@ -205,6 +226,11 @@ try {
   };
   await capture('01-home.png');
   const homeText = await evaluate(() => document.body.innerText);
+  if (diagnosticAuth) {
+    result.documentLanguage = await evaluate(() => document.documentElement.lang);
+    if (diagnosticScenario.endsWith('-zh')) assert.ok(/新建对话|新聊天|完整访问/.test(homeText), 'Chinese diagnostic locale applied');
+    if (diagnosticScenario.startsWith('project-')) assert.ok(/projectCount=1/.test(fs.readFileSync(path.join(output, 'desktop.log'), 'utf8')), 'existing workspace migrated into app-server project');
+  }
   assert.ok(!/ChatGPT hit a snag|Something went wrong\. Try again|Update ChatGPT/.test(homeText), 'home rendered without an application error boundary');
   assert.ok(/Full access|完整访问/.test(homeText), 'new chat uses full access by default');
   assert.ok(!/^Scheduled$/m.test(homeText), 'scheduled navigation removed');

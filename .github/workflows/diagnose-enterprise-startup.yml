@@ -13,7 +13,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        auth: [control, apikey, bearer-only, stale-chatgpt]
+        scenario: [empty-en, empty-zh, project-en, project-zh]
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -23,11 +23,11 @@ jobs:
       - run: npm ci
       - uses: actions/download-artifact@v8
         with:
-          name: TEENet-Codex-enterprise-preview
-          run-id: 34328652505
+          name: Codex-package
+          run-id: 34332567479
           github-token: ${{ github.token }}
           path: C:/te-diagnostic
-      - name: Unpack unchanged preview.2
+      - name: Unpack unchanged Codex b1
         shell: pwsh
         run: |
           $zip = Get-ChildItem C:/te-diagnostic -Filter '*-portable.zip' | Select-Object -First 1
@@ -41,10 +41,10 @@ jobs:
           $installer = Get-ChildItem C:/te-diagnostic -Filter '*-setup.exe' | Select-Object -First 1
           if (-not $installer) { throw 'Installer not found' }
           Copy-Item $installer.FullName ($metadata.DirectoryName + '-setup.exe')
-          node scripts/smoke-enterprise-preview.mjs $metadata.DirectoryName C:/te-report '${{ matrix.auth }}'
+          node scripts/smoke-enterprise-preview.mjs $metadata.DirectoryName C:/te-report bearer-only '${{ matrix.scenario }}'
       - uses: actions/upload-artifact@v7
         if: always()
         with:
-          name: gateway-startup-${{ matrix.auth }}
+          name: gateway-startup-${{ matrix.scenario }}
           path: C:/te-report
           retention-days: 7
