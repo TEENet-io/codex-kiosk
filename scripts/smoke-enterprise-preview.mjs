@@ -345,7 +345,7 @@ try {
     const text = document.querySelector('[data-teenet-preferences] main')?.innerText || '';
     return /Theme|主题/.test(text) && !/正在加载/.test(text);
   });
-  const clickBack = async () => {
+  const clickBack = async (expectReturn = false) => {
       const point = await evaluate(() => {
         const button = [...document.querySelectorAll('[data-teenet-preferences] header button')].find(button => button.textContent === '返回对话');
         if (!button) throw new Error('Missing return-to-chat button');
@@ -357,6 +357,7 @@ try {
       });
       const native = execFileSync('powershell.exe', ['-NoProfile', '-File', path.resolve('scripts/test/click-window-client.ps1'), '-TargetProcessId', String(child.pid), '-ClientX', String(point.x), '-ClientY', String(point.y)], { encoding: 'utf8', timeout: 15000 });
       await delay(2000);
+      if (expectReturn) await waitFor(() => !document.querySelector('[data-teenet-preferences]') && !!document.querySelector('[contenteditable="true"]')?.getClientRects().length);
       return { point, native: JSON.parse(native), ...(await evaluate(() => ({ clicked: window.__codexReturnClicks, stillInPreferences: !!document.querySelector('[data-teenet-preferences]'), hasComposer: !!document.querySelector('[contenteditable="true"]') }))) };
   };
   if (process.env.CODEX_TEST_RETURN_DIAG === '1') {
@@ -371,7 +372,7 @@ try {
       header.style.zIndex = '20';
       for (const button of header.querySelectorAll('button')) button.style.webkitAppRegion = 'no-drag';
     });
-    result.returnButtonAfter = await clickBack();
+    result.returnButtonAfter = await clickBack(true);
     assert.equal(result.returnButtonAfter.stillInPreferences, false, 'native return click leaves preferences');
     assert.equal(result.returnButtonAfter.hasComposer, true, 'native return click restores composer');
     await navigate('/settings/appearance');
@@ -379,7 +380,7 @@ try {
   } else if (current) {
     result.nativeReturnAttempts = [];
     for (let attempt = 0; attempt < 2; attempt++) {
-      const returned = await clickBack();
+      const returned = await clickBack(true);
       result.nativeReturnAttempts.push(returned);
       assert.equal(returned.point.region, 'no-drag', 'return button opts out of the native drag region');
       assert.equal(returned.stillInPreferences, false, 'native mouse click leaves preferences');
