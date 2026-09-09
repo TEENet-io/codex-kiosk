@@ -280,7 +280,7 @@ try {
   await capture('03-keyboard.png');
   const keyboardText = await evaluate(() => document.body.innerText);
   assert.ok(!/Switch to Work|Switch to Chat|Toggle activity view|New Temporary Chat|切换到 Work/.test(keyboardText), 'advanced command aliases absent from keyboard settings');
-  assert.ok(/Show or hide pet|Show pet|显示或隐藏宠物|显示宠物/.test(keyboardText), 'pet shortcut restored');
+  assert.ok(/Show or hide pet|Show pet|显示或隐藏(?:虚拟)?宠物|显示宠物/.test(keyboardText), 'pet shortcut restored');
   await clickPreference('归档对话');
   await delay(2000);
   await capture('04-archive.png');
@@ -290,9 +290,14 @@ try {
   assert.equal(await evaluate(() => [...document.querySelectorAll('nav[aria-label="个人偏好"] button')].find(button => button.textContent === '语音')?.getAttribute('aria-current')), 'page');
   result.checks.push('voice preferences retained');
   await clickPreference('宠物');
-  await waitFor(() => [...document.querySelectorAll('button')].some(button => /^(Wake Pet|Show Mini|唤醒宠物|显示宠物|显示 Mini)$/.test(button.textContent.trim())));
+  if (diagnosticScenario.startsWith('pet-')) {
+    await waitFor(() => [...document.querySelectorAll('button')].some(button => /^(Tuck Away Pet|Hide Mini|收起宠物|隐藏宠物|隐藏 Mini)$/.test(button.textContent.trim())));
+    result.checks.push('pet restored as open at startup');
+    await evaluate(() => [...document.querySelectorAll('button')].find(button => /^(Tuck Away Pet|Hide Mini|收起宠物|隐藏宠物|隐藏 Mini)$/.test(button.textContent.trim())).click());
+  }
+  await waitFor(() => [...document.querySelectorAll('button')].some(button => /^(Wake Pet|Show Mini|唤醒(?:虚拟)?宠物|显示宠物|显示 Mini)$/.test(button.textContent.trim())));
   await capture('07-pets.png');
-  await evaluate(() => [...document.querySelectorAll('button')].find(button => /^(Wake Pet|Show Mini|唤醒宠物|显示宠物|显示 Mini)$/.test(button.textContent.trim())).click());
+  await evaluate(() => [...document.querySelectorAll('button')].find(button => /^(Wake Pet|Show Mini|唤醒(?:虚拟)?宠物|显示宠物|显示 Mini)$/.test(button.textContent.trim())).click());
   await waitFor(() => [...document.querySelectorAll('button')].some(button => /^(Tuck Away Pet|Hide Mini|收起宠物|隐藏宠物|隐藏 Mini)$/.test(button.textContent.trim())));
   let petTarget;
   for (let attempt = 0; attempt < 20; attempt++) {
@@ -304,7 +309,7 @@ try {
   assert.ok(petTarget, 'pet overlay window opened from preferences');
   result.petPageUrl = petTarget.url;
   await evaluate(() => [...document.querySelectorAll('button')].find(button => /^(Tuck Away Pet|Hide Mini|收起宠物|隐藏宠物|隐藏 Mini)$/.test(button.textContent.trim())).click());
-  await waitFor(() => [...document.querySelectorAll('button')].some(button => /^(Wake Pet|Show Mini|唤醒宠物|显示宠物|显示 Mini)$/.test(button.textContent.trim())));
+  await waitFor(() => [...document.querySelectorAll('button')].some(button => /^(Wake Pet|Show Mini|唤醒(?:虚拟)?宠物|显示宠物|显示 Mini)$/.test(button.textContent.trim())));
   result.checks.push('pet preferences, keyboard shortcut and overlay show/hide restored');
   await navigate('/plugins');
   await delay(3000);
