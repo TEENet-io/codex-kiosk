@@ -80,6 +80,16 @@ export function patchPinnedModelCommand(source, version) {
   return replaceExact(source, 'P=JIr(M,p?N:null),{serviceTierSettings:F}=cv(n)', 'P;{let e=p?N:null;t[51]!==M||t[52]!==e?(P=JIr(M,e),t[51]=M,t[52]=e,t[53]=P):P=t[53]}let{serviceTierSettings:F}=cv(n)', 'model command catalog dependency');
 }
 
+export function patchPinnedCommandRegistration(source, version) {
+  if (version !== '26.901.51231') throw new Error('Unsupported command registration baseline: ' + version);
+  // Ras runs in a layout effect. Disabled commands with changing dependencies
+  // can re-register on every subscriber render, although the visible registry
+  // never changes. Preserve identity for that no-op; retain reference-sensitive
+  // comparison so replacement callbacks and command ordering still propagate.
+  source = replaceExact(source, 'e(e=>Has([...e.filter(e=>!n.has(e.id)&&!r.has(e.id)),...t].filter(zas)))', 'e(e=>{let i=Has([...e.filter(e=>!n.has(e.id)&&!r.has(e.id)),...t].filter(zas));return i.length===e.length&&i.every((t,n)=>t===e[n])?e:i})/*codex:stable-command-registration*/', 'command registration no-op');
+  return replaceExact(source, 'e(e=>e.filter(e=>!t.has(e.id)))', 'e(e=>{let n=e.filter(e=>!t.has(e.id));return n.length===e.length?e:n})/*codex:stable-command-cleanup*/', 'command cleanup no-op');
+}
+
 export function patchSemanticControls(source, sourceType = 'module') {
   const ast = parse(source, { ecmaVersion: 'latest', sourceType, allowReturnOutsideFunction: true });
   const edits = [];
@@ -173,6 +183,7 @@ export function patchExtractedBundle(root) {
       `, 'renderer RPC boundary');
     }
     if (rel === rendererFile) {
+      if (current) source = patchPinnedCommandRegistration(source, pkg.version);
       source = patchPinnedStartupControls(source, 'renderer', pkg.version);
       source = 'import "./teenet-policy.js";\n' + source;
       source = replaceExact(source, 'workspaceRootsIsLoading:u}){return e.isLoading?', 'workspaceRootsIsLoading:u}){return globalThis.TEENetPolicy.onboardingTarget(e);/*teenet:managed-onboarding*/return e.isLoading?', 'managed onboarding decision');

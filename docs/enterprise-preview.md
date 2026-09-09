@@ -1,6 +1,6 @@
 # Codex 精简版构建
 
-当前新增 `26.901.51231-b3` 宠物隔离测试包：用户反馈 b2 仍报错，暂时屏蔽宠物入口与原生悬浮窗，包括启动预加载和旧状态恢复。保留 b2 其余修复及所有用户配置。此改动用于验证触发条件，不能提前断言故障已解决；下文 b2 验收属于历史记录。
+当前候选 `26.901.51231-b4`：b3 屏蔽宠物后员工仍出现同一命令注册循环，补充注册器无变化时保留数组引用的修复。继续屏蔽宠物入口与原生悬浮窗，保留模型缓存及所有用户配置；Windows 验证待完成，员工完整状态尚未复现。
 
 依据 2026-09-08 周会，企业版保留对话、项目、归档、语音、外观、快捷键、模型切换、管理员预装插件及 Skill 创建，收起设置、编码环境、自主安装和高级控制入口。
 
@@ -8,7 +8,7 @@
 
 ## 固定构建输入
 
-当前构建 `26.901.51231-b2` 基于官方 Windows x64 MSIX `26.901.6511.0`，SHA-256 为 `fd9ae9eeeeaf11577191ce5a39d0b8f95fa73d591aa3a94f688b84d294d1fa85`。版本、来源与摘要固定在 `config/enterprise-preview.json`。Windows CI 已通过，下载和员工实际状态的回测边界见[交付记录](enterprise-change-inventory.md#7-验证与交付记录)。官方稳定下载地址会滚动更新；若摘要不符，构建立刻失败，必须提供保存的固定版本 MSIX，不能自动接受新包。
+当前构建 `26.901.51231-b4` 基于官方 Windows x64 MSIX `26.901.6511.0`，SHA-256 为 `fd9ae9eeeeaf11577191ce5a39d0b8f95fa73d591aa3a94f688b84d294d1fa85`。版本、来源与摘要固定在 `config/enterprise-preview.json`。验证结果和员工实际状态的回测边界见[交付记录](enterprise-change-inventory.md#7-验证与交付记录)。官方稳定下载地址会滚动更新；若摘要不符，构建立刻失败，必须提供保存的固定版本 MSIX，不能自动接受新包。
 
 `carrier` 仍使用已发布的 `offline-v26.810.52044-b1`，仅提供启动器、模型目录、Skill 种子和固定办公插件。构建删除载体的整套 `_internal/app`，换入官方新版 app（包括 EXE、CLI、原生模块和前端），再执行独立运行补丁与企业策略。原生组件不会与旧版混装。
 
@@ -16,7 +16,7 @@
 npm ci
 node scripts/build-enterprise-preview.mjs --source-msix /path/to/ChatGPT-26.901.6511.0-x64.msix --output dist/enterprise-current
 # Windows 上额外传 --installer 生成安装器，然后运行桌面验收
-node scripts/smoke-enterprise-preview.mjs dist/enterprise-current/codex-only-local-26.901.51231-b2 dist/enterprise-current/smoke
+node scripts/smoke-enterprise-preview.mjs dist/enterprise-current/codex-only-local-26.901.51231-b4 dist/enterprise-current/smoke
 ```
 
 新版适配保留原企业功能清单，并额外禁用上游新增的统一 Computer Use 插件、自动化应用工具插件、写作个性化插件及浏览器扩展/同步开关。`--enterprise` 不执行浏览器、Computer Use、工作环境和 Activity 入口的启用补丁；静态 gate 替换与运行时统一遵循企业策略。
@@ -34,6 +34,14 @@ node scripts/smoke-enterprise-preview.mjs dist/enterprise-current/codex-only-loc
 隐藏配置入口及限制应用内管理操作不等于操作系统级防篡改：会议要求保留完整访问和 Skill 创建，因此操作系统权限、程序执行及管理员配置文件保护仍需由受管终端策略落实。
 
 ## 历史依据
+
+### 2026-09-09 b3 后续 trace 与注册器无变化更新
+
+员工 14:50Z 的 trace 只有主窗口，仍出现 `ste → Pzt → Pas/Ras` 链；后续 `DetermineComponentFrameRoot` 下的 `pUr` 不能确认实际触发命令的归属。旧回归的设置对象与选择回调均固定，遗漏了禁用命令依赖换引用的场景。新增回归使用相同版本的真实 hooks，即使应用 b2 模型缓存，禁用命令搭配每次新建的设置/回调仍超过更新上限。
+
+`patchPinnedCommandRegistration` 固定 26.901 两处唯一锚点：注册列表经过原有过滤与排序后，若长度、顺序和各命令对象引用与之前完全相同，返回原数组；清理未移除命令时也返回原数组。没有深比较或忽略回调，启用命令替换仍可通知订阅者。此处是本地 React effect/store 语义，无法由 Gateway 修正。测试覆盖旧补丁仍循环、新补丁停止、模型刷新、单独替换选择回调、禁用/重新启用及卸载。
+
+用户同时报告重试后无法点击。旧采集器会暂停所有异常，最新 trace 中 React 诊断帧相隔约三秒；采集器可能加剧卡顿，但尚不能证明它是全部原因。新版临时采集器捕获固定位置的 React #185 后立即 detach，其他异常最多 64 次，保留 120 秒超时。不读取或写入异常 payload、凭据或作用域。测试确认停止后不再处理异常，销毁时不会重复 detach。日常验证应退出采集器后从正常 Codex 入口启动。
 
 ### 2026-09-09 按员工配置对照 b3
 

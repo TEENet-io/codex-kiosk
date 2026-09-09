@@ -31,6 +31,7 @@ function attachTrace(contents, write, durationMs = 120000, onReady = () => {}) {
     write({ event: 'trace-stopped', window: contents.id, exceptions });
   }
   connection.on('message', (_event, method, params) => {
+    if (stopped) return;
     if (method === 'Debugger.scriptParsed') scripts.set(params.scriptId, params.url);
     if (method !== 'Debugger.paused') return;
     const frames = (params.callFrames || []).map(frame => safeFrame({ ...frame, url: frame.url || scripts.get(frame.location?.scriptId) || '' }));
@@ -39,7 +40,11 @@ function attachTrace(contents, write, durationMs = 120000, onReady = () => {}) {
     // Resume before doing synchronous report I/O. Never inspect paused scopes.
     send('Debugger.resume').catch(stop);
     write({ event: 'exception', window: contents.id, reason: params.reason, focused, frames: frames.slice(0, focused ? 30 : 12) });
-    if (exceptions >= 2000) stop();
+    // The pinned 26.901 trace already identifies this as React #185. Once
+    // captured, detach so Retry cannot repeatedly pause while React constructs
+    // its diagnostic component stack. No exception payload needs to be read.
+    const updateLoop = frames.some(frame => frame.file === 'app-initial-f87238153a19.js' && frame.function === 'ste' && frame.line === 11 && frame.column === 27594);
+    if (updateLoop || exceptions >= 64) stop();
   });
   try { connection.attach('1.3'); }
   catch { write({ event: 'attach-failed', window: contents.id }); return stop; }

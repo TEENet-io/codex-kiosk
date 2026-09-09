@@ -34,3 +34,29 @@ test('trace strips directory and query parameters from frame URLs', () => {
   assert.equal(safeFrame({ url: 'file:///C:/Users/private/app.js?key=secret' }).file, 'app.js');
   assert.equal(safeFrame({ url: 'https://example.com/secret' }).file, '<runtime>');
 });
+
+test('known React update loop is captured once then debugger detaches before Retry', async () => {
+  const contents = new EventEmitter();
+  contents.id = 1;
+  contents.debugger = new EventEmitter();
+  let detached = 0;
+  const commands = [], report = [];
+  contents.debugger.attach = () => {};
+  contents.debugger.detach = () => detached++;
+  contents.debugger.sendCommand = async method => commands.push(method);
+  attachTrace(contents, value => report.push(value));
+  await new Promise(resolve => setImmediate(resolve));
+  const params = {
+    reason: 'exception',
+    get data() { throw new Error('exception payload must not be read'); },
+    callFrames: [{ functionName: 'ste', url: 'app://-/assets/app-initial-f87238153a19.js', location: { lineNumber: 10, columnNumber: 27593 } }],
+  };
+  contents.debugger.emit('message', null, 'Debugger.paused', params);
+  assert.equal(commands.at(-1), 'Debugger.resume');
+  assert.equal(detached, 1);
+  assert.deepEqual(report.map(value => value.event), ['trace-ready', 'exception', 'trace-stopped']);
+  contents.debugger.emit('message', null, 'Debugger.paused', params);
+  contents.emit('destroyed');
+  assert.equal(detached, 1);
+  assert.equal(report.length, 3);
+});

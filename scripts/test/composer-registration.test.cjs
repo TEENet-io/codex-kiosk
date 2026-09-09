@@ -9,7 +9,7 @@ const baseline = fs.readFileSync(path.join(__dirname, 'fixtures/composer-registr
 // Run the actual pinned producer and registration hooks. Only React scheduling
 // and unrelated host hooks are substituted. Store subscribers re-render the
 // composer after its registered commands change, as an active editor does.
-function mount(source, enabled = true) {
+function mount(source, enabled = true, freshSelection = false) {
   const memo = new Map(), effects = [], ref = { current: undefined };
   let hook = 0, pending = [], dirty = false, writes = 0;
   const model = id => ({ model: id, displayName: id, description: id, defaultReasoningEffort: 'high', supportedReasoningEfforts: [{ reasoningEffort: 'high' }] });
@@ -28,7 +28,7 @@ function mount(source, enabled = true) {
     Db: () => store, zx: () => store, hK: {}, $as: {}, yi: {},
     me: () => intl, uH: () => editor, hO: () => ({ hostId: 'local', cwd: null }), lS: () => ({ requiresAuth: enabled, authMethod: 'apikey' }),
     rw: () => false, OIr: {}, bS: value => value, hg: {}, Ts: {}, Jt: {},
-    xFr: () => selection, ZIr: () => null, ZS: () => ({ data: { models }, status: 'success' }), iFe: () => true,
+    xFr: () => freshSelection ? { ...selection, modelSettings: { ...settings }, selectComposerModelAndReasoningEffort: (...args) => selection.selectComposerModelAndReasoningEffort(...args) } : selection, ZIr: () => null, ZS: () => ({ data: { models }, status: 'success' }), iFe: () => true,
     $oe: () => null, Pd: () => null, cv: () => ({ serviceTierSettings: tiers }), dUr: () => null, hUr: () => false,
     ef: (list, id) => list?.find(item => item.model === id), Uf: value => value,
     A3() {}, tH() {}, qgr: {}, Iv: {},
@@ -49,6 +49,8 @@ function mount(source, enabled = true) {
   };
   return { settle, get writes() { return writes; }, get registry() { return registry; }, selected,
     refresh(ids) { models = ids.map(model); settle(); },
+    replaceCallback(callback) { selection.selectComposerModelAndReasoningEffort = callback; settle(); },
+    setEnabled(value) { enabled = value; settle(); },
     unmount() { for (const effect of effects) effect.cleanup?.(); },
   };
 }
@@ -82,4 +84,44 @@ test('model command patch refuses a different version or changed pinned anchors'
   const { patchPinnedModelCommand } = await import('../enterprise/patch-bundle.mjs');
   assert.throws(() => patchPinnedModelCommand(baseline, '26.810.52044'), /Unsupported/);
   assert.throws(() => patchPinnedModelCommand(baseline.replace('gUr.c)(51)', 'gUr.c)(52)'), '26.901.51231'), /drift/);
+});
+
+test('b2 still loops when a disabled command receives freshly allocated selection dependencies', async () => {
+  const { patchPinnedModelCommand } = await import('../enterprise/patch-bundle.mjs');
+  assert.throws(() => mount(patchPinnedModelCommand(baseline, '26.901.51231'), false, true).settle(), /Maximum update depth/);
+});
+
+test('registration preserves an unchanged array but still publishes enabled command changes', async () => {
+  const { patchPinnedModelCommand, patchPinnedCommandRegistration } = await import('../enterprise/patch-bundle.mjs');
+  const source = patchPinnedCommandRegistration(patchPinnedModelCommand(baseline, '26.901.51231'), '26.901.51231');
+  const disabled = mount(source, false, true);
+  disabled.settle();
+  disabled.settle();
+  disabled.unmount();
+  assert.equal(disabled.writes, 0, 'disabled registration and cleanup do not notify subscribers');
+  const enabled = mount(source);
+  enabled.settle();
+  assert.equal(enabled.writes, 1);
+  enabled.refresh(['deepseek-v3.2', 'kimi-k2.5']);
+  assert.equal(enabled.writes, 2);
+  enabled.registry[0].submenu.sections[0].items[1].onSelect();
+  assert.deepEqual(enabled.selected, [['kimi-k2.5', 'high']]);
+  const replacementCalls = [];
+  enabled.replaceCallback((...args) => replacementCalls.push(args.slice(0, 2)));
+  assert.equal(enabled.writes, 3, 'callback-only replacement is observable');
+  enabled.registry[0].submenu.sections[0].items[1].onSelect();
+  assert.deepEqual(replacementCalls, [['kimi-k2.5', 'high']]);
+  enabled.setEnabled(false);
+  assert.equal(enabled.registry.length, 0);
+  assert.equal(enabled.writes, 4, 'disabling an active command removes it');
+  enabled.setEnabled(true);
+  assert.equal(enabled.writes, 5);
+  enabled.unmount();
+  assert.equal(enabled.writes, 6, 'unmount of an active command is observable');
+});
+
+test('registration patch refuses a different version or changed pinned anchors', async () => {
+  const { patchPinnedCommandRegistration } = await import('../enterprise/patch-bundle.mjs');
+  assert.throws(() => patchPinnedCommandRegistration(baseline, '26.810.52044'), /Unsupported/);
+  assert.throws(() => patchPinnedCommandRegistration(baseline.replace('.filter(zas)', '.filter(other)'), '26.901.51231'), /drift/);
 });
