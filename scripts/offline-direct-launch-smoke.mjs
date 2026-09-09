@@ -39,7 +39,8 @@ const stdoutPath = path.join(workRoot, 'codex-stdout.log');
 const stderrPath = path.join(workRoot, 'codex-stderr.log');
 const resultPath = path.join(workRoot, 'result.json');
 const userDataPath = path.join(workRoot, 'user-data');
-const codexHome = path.join(workRoot, '.codex');
+const codexHome = args['codex-home'] ? path.resolve(args['codex-home']) : path.join(workRoot, '.codex');
+const normalNetwork = args['normal-network'] === '1';
 fs.mkdirSync(userDataPath, { recursive: true });
 fs.mkdirSync(codexHome, { recursive: true });
 
@@ -57,8 +58,7 @@ const launchArgs = [
   '--no-sandbox',
   '--enable-logging',
   '--v=1',
-  '--host-resolver-rules=MAP * 0.0.0.0,EXCLUDE localhost,EXCLUDE 127.0.0.1',
-  '--proxy-server=http://127.0.0.1:9',
+  ...(!normalNetwork ? ['--host-resolver-rules=MAP * 0.0.0.0,EXCLUDE localhost,EXCLUDE 127.0.0.1', '--proxy-server=http://127.0.0.1:9'] : []),
 ];
 
 const appProcess = spawn(appExe, launchArgs, {
@@ -66,16 +66,13 @@ const appProcess = spawn(appExe, launchArgs, {
   detached: false,
   env: {
     ...process.env,
-    ALL_PROXY: 'http://127.0.0.1:9',
+    ...(!normalNetwork ? { ALL_PROXY: 'http://127.0.0.1:9', HTTPS_PROXY: 'http://127.0.0.1:9', HTTP_PROXY: 'http://127.0.0.1:9', NO_PROXY: 'localhost,127.0.0.1' } : {}),
     CODEX_ELECTRON_ENABLE_WINDOWS_COMPUTER_USE: '1',
     CODEX_ELECTRON_USER_DATA_PATH: userDataPath,
     CODEX_HOME: codexHome,
     CODEX_OFFLINE_PATCH_DEBUG: '1',
     ELECTRON_ENABLE_LOGGING: '1',
     ELECTRON_ENABLE_STACK_DUMPING: '1',
-    HTTPS_PROXY: 'http://127.0.0.1:9',
-    HTTP_PROXY: 'http://127.0.0.1:9',
-    NO_PROXY: 'localhost,127.0.0.1',
   },
   stdio: ['ignore', out, err],
   windowsHide: false,

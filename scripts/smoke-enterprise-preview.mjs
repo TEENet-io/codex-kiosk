@@ -12,6 +12,8 @@ const asar = require('@electron/asar');
 const diagnosticAuth = process.argv[4];
 if (diagnosticAuth) assert.ok(['control', 'apikey', 'bearer-only', 'stale-chatgpt'].includes(diagnosticAuth));
 const customCatalog = diagnosticAuth && diagnosticAuth !== 'control';
+const employeeConfig = process.env.CODEX_TEST_EMPLOYEE_CONFIG === '1';
+if (employeeConfig) assert.ok(customCatalog, 'employee profile requires employee catalog');
 const diagnosticScenario = process.argv[5] || 'empty-en';
 assert.ok(['empty-en', 'empty-zh', 'project-en', 'project-zh', 'pet-en', 'pet-zh'].includes(diagnosticScenario));
 const diagnosticLocale = diagnosticScenario.endsWith('-zh') ? 'zh-CN' : 'en-US';
@@ -46,8 +48,13 @@ if (customCatalog) {
   catalog = path.join(home, 'models.json').replaceAll('\\', '/');
   fs.writeFileSync(catalog, JSON.stringify(gatewayCatalogFixture(template)));
 }
-const config = `model = "${customCatalog ? 'deepseek-v3.2' : 'gpt-5.6'}"\nmodel_provider = "preview"\nmodel_catalog_json = ${JSON.stringify(catalog)}\n[model_providers.preview]\nname = "Gateway fixture"\nbase_url = "http://127.0.0.1:9/v1"\nwire_api = "responses"\nexperimental_bearer_token = "preview-not-a-real-key"\n`
+let config = `model = "${customCatalog ? 'deepseek-v3.2' : 'gpt-5.6'}"\nmodel_provider = "preview"\nmodel_catalog_json = ${JSON.stringify(catalog)}\n[model_providers.preview]\nname = "Gateway fixture"\nbase_url = "http://127.0.0.1:9/v1"\nwire_api = "responses"\nexperimental_bearer_token = "preview-not-a-real-key"\n`
   + (diagnosticAuth ? `\n[desktop]\nlocaleOverride = ${JSON.stringify(diagnosticLocale)}\n` : '');
+if (employeeConfig) {
+  const { employeeConfigFixture } = await import('./test/fixtures/employee-config.mjs');
+  config = employeeConfigFixture(home);
+  fs.writeFileSync(path.join(output, 'config-fixture.toml'), config);
+}
 fs.writeFileSync(path.join(home, 'config.toml'), config);
 if (diagnosticAuth !== 'bearer-only') {
   const jwt = claims => Buffer.from('{}').toString('base64url') + '.' + Buffer.from(JSON.stringify(claims)).toString('base64url') + '.fixture';
@@ -89,7 +96,7 @@ if (diagnosticAuth && process.env.CODEX_TEST_STARTUP_TRACE === '1') {
   process.env.CODEX_STARTUP_TRACE_SELFTEST = '1';
 }
 const bootstrapRoot = path.join(output, 'production-bootstrap');
-execFileSync(process.execPath, [path.resolve('scripts/offline-direct-launch-smoke.mjs'), '--portable-root', root, '--work-root', bootstrapRoot, '--timeout-ms', process.env.CODEX_TEST_STARTUP_TRACE === '1' ? '25000' : '15000'], { stdio: 'inherit' });
+execFileSync(process.execPath, [path.resolve('scripts/offline-direct-launch-smoke.mjs'), '--portable-root', root, '--work-root', bootstrapRoot, '--timeout-ms', employeeConfig ? '30000' : process.env.CODEX_TEST_STARTUP_TRACE === '1' ? '25000' : '15000', ...(employeeConfig ? ['--codex-home', home, '--normal-network'] : [])], { stdio: 'inherit' });
 const bootstrap = JSON.parse(fs.readFileSync(path.join(bootstrapRoot, 'result.json'), 'utf8'));
 assert.equal(bootstrap.pass, true, 'unchanged production executable startup');
 if (process.env.CODEX_TEST_STARTUP_TRACE === '1') {
@@ -137,12 +144,13 @@ await new Promise(resolve => server.close(resolve));
 const log = fs.openSync(path.join(output, 'desktop.log'), 'w');
 const child = spawn(path.join(root, '_internal/app/ChatGPT.exe'), ['--remote-debugging-port=' + port, '--remote-debugging-address=127.0.0.1', '--user-data-dir=' + path.join(isolated, 'electron'), '--disable-gpu', '--disable-renderer-backgrounding', '--disable-background-timer-throttling', '--disable-backgrounding-occluded-windows'], {
   cwd: path.join(root, '_internal/app'), windowsHide: false,
-  env: { ...process.env, CODEX_HOME: home, CODEX_ELECTRON_USER_DATA_PATH: path.join(isolated, 'electron'), CODEX_OFFLINE_PATCH_DEBUG: '1', CODEX_ELECTRON_ENABLE_WINDOWS_COMPUTER_USE: '0', HTTP_PROXY: 'http://127.0.0.1:9', HTTPS_PROXY: 'http://127.0.0.1:9', NO_PROXY: 'localhost,127.0.0.1', ELECTRON_ENABLE_LOGGING: '1' },
+  env: { ...process.env, CODEX_HOME: home, CODEX_ELECTRON_USER_DATA_PATH: path.join(isolated, 'electron'), CODEX_OFFLINE_PATCH_DEBUG: '1', CODEX_ELECTRON_ENABLE_WINDOWS_COMPUTER_USE: '0', ...(!employeeConfig ? { HTTP_PROXY: 'http://127.0.0.1:9', HTTPS_PROXY: 'http://127.0.0.1:9', NO_PROXY: 'localhost,127.0.0.1' } : {}), ELECTRON_ENABLE_LOGGING: '1' },
   stdio: ['ignore', log, log],
 });
 let spawnError;
 child.on('error', error => { spawnError = error; });
 const result = { pass: false, version: JSON.parse(fs.readFileSync(path.join(root, 'enterprise-build.json'))).version, instrumentation: 'DevTools enabled only in temporary installed copy; distributed artifacts unchanged', screenshots: [], checks: ['unchanged production executable startup', ...(installed ? ['silent installer completed and preserved managed configuration'] : [])] };
+if (employeeConfig) result.configProfile = { source: 'user-pasted-config', network: 'normal runner network', differences: ['redacted key placeholder', 'temporary Windows home path', 'synthetic model metadata; instruction templates not copied', 'isolated Electron state; software rendering', 'auth variant recorded separately'] };
 let browser;
 async function deadline(promise, label, timeout = 15000) {
   let timer;
@@ -377,7 +385,7 @@ try {
   assert.ok(!fs.readFileSync(path.join(output, 'desktop.log'), 'utf8').includes('bundled_plugins_marketplace_install_failed'), 'approved bundled plugins installed');
   result.checks.push('no renderer exceptions during preference navigation');
   const after = fs.readFileSync(path.join(home, 'config.toml'), 'utf8');
-  assert.ok(after.includes('model_provider = "preview"'), 'provider preserved');
+  assert.ok(after.includes('model_provider = "' + (employeeConfig ? 'gateway' : 'preview') + '"'), 'provider preserved');
   assert.ok(!after.includes('[mcp_servers.node_repl]'), 'no browser MCP persisted');
   result.checks.push('administrator provider preserved');
   result.visualCapture = result.screenshotErrors?.length ? 'unavailable-on-runner' : 'passed';
