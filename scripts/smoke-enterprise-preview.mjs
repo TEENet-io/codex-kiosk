@@ -9,6 +9,8 @@ import { createRequire } from 'node:module';
 import { setTimeout as delay } from 'node:timers/promises';
 const require = createRequire(import.meta.url);
 const asar = require('@electron/asar');
+const diagnosticAuth = process.argv[4];
+if (diagnosticAuth) assert.ok(['apikey', 'bearer-only', 'stale-chatgpt'].includes(diagnosticAuth));
 
 if (process.platform !== 'win32') throw new Error('Enterprise desktop smoke requires Windows');
 let root = path.resolve(process.argv[2]);
@@ -18,10 +20,22 @@ fs.mkdirSync(output, { recursive: true });
 const isolated = fs.mkdtempSync(path.join(os.tmpdir(), 'teenet-smoke-'));
 const home = path.join(isolated, 'codex');
 fs.mkdirSync(home, { recursive: true });
-const catalog = path.join(root, '_internal/models-api.json').replaceAll('\\', '/');
-const config = `model = "gpt-5.6"\nmodel_provider = "preview"\nmodel_catalog_json = ${JSON.stringify(catalog)}\n[model_providers.preview]\nname = "TEENet Preview"\nbase_url = "http://127.0.0.1:9/v1"\nwire_api = "responses"\nexperimental_bearer_token = "preview-not-a-real-key"\n`;
+let catalog = path.join(root, '_internal/models-api.json').replaceAll('\\', '/');
+if (diagnosticAuth) {
+  const { gatewayCatalogFixture } = await import('./test/fixtures/gateway-catalog.mjs');
+  const template = JSON.parse(fs.readFileSync(catalog, 'utf8')).models[0];
+  catalog = path.join(home, 'models.json').replaceAll('\\', '/');
+  fs.writeFileSync(catalog, JSON.stringify(gatewayCatalogFixture(template)));
+}
+const config = `model = "${diagnosticAuth ? 'deepseek-v3.2' : 'gpt-5.6'}"\nmodel_provider = "preview"\nmodel_catalog_json = ${JSON.stringify(catalog)}\n[model_providers.preview]\nname = "TEENet Preview"\nbase_url = "http://127.0.0.1:9/v1"\nwire_api = "responses"\nexperimental_bearer_token = "preview-not-a-real-key"\n`;
 fs.writeFileSync(path.join(home, 'config.toml'), config);
-fs.writeFileSync(path.join(home, 'auth.json'), JSON.stringify({ OPENAI_API_KEY: 'preview-not-a-real-key', auth_mode: 'apikey' }));
+if (diagnosticAuth !== 'bearer-only') {
+  const jwt = claims => Buffer.from('{}').toString('base64url') + '.' + Buffer.from(JSON.stringify(claims)).toString('base64url') + '.fixture';
+  const auth = diagnosticAuth === 'stale-chatgpt'
+    ? { auth_mode: 'chatgpt', OPENAI_API_KEY: null, last_refresh: '2020-01-01T00:00:00Z', tokens: { id_token: jwt({ email: 'fixture@example.invalid', 'https://api.openai.com/auth': { chatgpt_account_id: 'fixture', chatgpt_plan_type: 'plus' } }), access_token: jwt({ exp: 1 }), refresh_token: 'fixture-not-a-real-token', account_id: 'fixture' } }
+    : { OPENAI_API_KEY: 'preview-not-a-real-key', auth_mode: 'apikey' };
+  fs.writeFileSync(path.join(home, 'auth.json'), JSON.stringify(auth));
+}
 const installer = root + '-setup.exe';
 let installed = false;
 if (fs.existsSync(installer)) {
@@ -131,6 +145,16 @@ try {
     if (event.type === 'error') consoleErrors.push(event.args.map(arg => arg.description || String(arg.value)).join(' '));
   });
   await send('Runtime.enable');
+  if (diagnosticAuth) {
+    result.diagnosticAuth = diagnosticAuth;
+    result.caughtExceptions = [];
+    await send('Debugger.enable');
+    cdp.on('Debugger.paused', event => {
+      if (result.caughtExceptions.length < 200) result.caughtExceptions.push({ reason: event.reason, error: event.data?.description, frames: event.callFrames.slice(0, 12).map(frame => ({ functionName: frame.functionName, url: frame.url, location: frame.location })) });
+      cdp.send('Debugger.resume').catch(() => {});
+    });
+    await send('Debugger.setPauseOnExceptions', { state: 'all' });
+  }
   await send('Runtime.runIfWaitingForDebugger');
   await send('Page.bringToFront');
   const evaluate = async (fn, arg) => {
@@ -151,6 +175,7 @@ try {
   // the renderer and initializing its app-server on a cold Windows runner.
   await waitFor(() => /New chat|新建对话|新聊天|hit a snag|Something went wrong/.test(document.body.innerText), 60);
   await waitFor(() => /Full access|完整访问|hit a snag|Something went wrong/.test(document.body.innerText), 30);
+  if (diagnosticAuth) await delay(15000);
   const capture = async name => {
     // Headless Windows runners can expose an interactive DOM without a
     // compositor surface. Preserve that distinction in the validation report.
