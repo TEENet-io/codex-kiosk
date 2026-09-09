@@ -172,6 +172,26 @@ ai-env-mgr 相关代码位于 `/root/pp_home/windows-pc/ai-env-mgr`。本次任�
 
 ## 7. 验证与交付记录
 
+### preview.2：恢复宠物与删除提示（2026-09-09）
+
+验收代码提交：`9b4e9ad548ac4ec39563291f1dc6bd94402e0b34`；[Windows CI 与日志](https://github.com/TEENet-io/codex-kiosk/actions/runs/34328652505) 全部通过。后续文档提交补充了第 2.1 节完整设置表，不改变该安装包。
+
+- 通过全量回归、网关构建与测试、包完整性验证、真实 CLI 配置读取、静默安装及生产 EXE 启动检查。
+- 七个页面截图检查通过；精简偏好页有五个入口，管理员配置提示已删除，其他受限设置仍重定向。
+- 宠物快捷键存在；在宠物偏好页点击 Wake Pet 后实际创建 `/avatar-overlay` 窗口，点击 Tuck Away Pet 后恢复未显示状态。
+- `rendererErrors=[]`、`consoleErrors=[]`；Provider 与管理员配置保留。真实网关、语音与插件服务的联调边界仍同第 6 节。
+- [下载 preview.2 安装器、便携包、block-list 与报告](https://nightly.link/TEENet-io/codex-kiosk/actions/artifacts/10095122653.zip)；[仅下载截图与验证报告](https://nightly.link/TEENet-io/codex-kiosk/actions/artifacts/10095101694.zip)。解压总包后运行 `TEENet-Codex-26.901.51231-enterprise-preview.2-setup.exe`。
+- 本机目录：`/root/sun_home/codex-kiosk/dist/enterprise-26.901-preview2/`。
+
+| preview.2 文件 | SHA-256 |
+| --- | --- |
+| `TEENet-Codex-26.901.51231-enterprise-preview.2-setup.exe` | `d77828ab309ad7993f3b256f1e4bd943db4b10e71dabb004445e1ee362b653c5` |
+| `TEENet-Codex-26.901.51231-enterprise-preview.2-portable.zip` | `290cf8865d690e253423b86f1172e8098119098fcc85bda70d393be3cdcfd77c` |
+
+试用反馈：员工机器安装 preview.1 后显示“ChatGPT 遇到了问题”，尚待错误详情定位。上述 CI 使用隔离测试配置，不能据此声称已修复该机器上的启动故障；preview.2 的功能改动也不是针对该故障的修复。
+
+### preview.1 历史验收
+
 最终 Windows 预览验收已通过（2026-09-09）。验收代码提交：`678f45d39ed288614a9aed8d7cc54ca4bf50d213`；[CI 运行与完整日志](https://github.com/TEENet-io/codex-kiosk/actions/runs/34321045595)。以下记录对应 preview.1。preview.2 恢复宠物并删除权限提示，其新包验收结果将在本节单独记录，不能用旧包结果代替。
 
 - Windows：125 项回归测试、18 项网关测试全部通过，网关构建通过。
