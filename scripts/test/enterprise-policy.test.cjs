@@ -154,16 +154,17 @@ test('native bundled marketplace trust handles Windows short and long aliases of
 });
 
 
-test('pets remain available through preferences, native messages and profile menu', () => {
-  assert.equal(policy.routeAllowed('/settings/pets'), true);
-  for (const id of ['openPetOverlay', 'tuckAwayPetOverlay', 'openAvatarOverlay']) assert.equal(policy.commandAllowed(id), true, id);
-  for (const type of ['avatar-overlay-open', 'avatar-overlay-close', 'avatar-overlay-set-avatar']) assert.equal(policy.messageDenial({ type }), null, type);
-  assert.equal(policy.applyGatePolicy({ '2679188970': true })['2679188970'], true);
-  assert.equal(policy.applyFeaturePolicy({ avatarOverlay: true }).avatarOverlay, true);
+test('pet isolation disables preferences, native messages and profile menu', () => {
+  assert.equal(policy.routeAllowed('/settings/pets'), false);
+  assert.equal(policy.routeAllowed('/avatar-overlay'), false);
+  for (const id of ['openPetOverlay', 'tuckAwayPetOverlay', 'openAvatarOverlay']) assert.equal(policy.commandAllowed(id), false, id);
+  for (const type of ['avatar-overlay-open', 'avatar-overlay-close', 'avatar-overlay-set-avatar']) assert.ok(policy.messageDenial({ type }), type);
+  assert.equal(policy.applyGatePolicy({ '2679188970': true })['2679188970'], false);
+  assert.equal(policy.applyFeaturePolicy({ avatarOverlay: true }).avatarOverlay, false);
   const toggle = () => {};
   const jsx = policy.createJsxGuard((type, props) => ({ type, props }));
   const menu = jsx('ProfileMenu', { onOpenSettings() {}, onLogOut() {}, onTogglePet: toggle });
-  assert.equal(menu.props.onTogglePet, toggle);
+  assert.equal(menu.props.onTogglePet, undefined);
   assert.equal(menu.props.onLogOut, undefined, 'account management stays blocked');
   assert.equal(policy.routeAllowed('/settings/personalization'), false);
   assert.ok(policy.messageDenial({ type: 'computer-use-start' }));

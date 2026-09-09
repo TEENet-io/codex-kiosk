@@ -61,6 +61,15 @@ export function patchPinnedStartupControls(source, kind, version = '26.810.52044
   return replaceExact(source, 'nUs=ja(Q,(e,{get:t})=>{if(e==null||e!==`local`)', 'nUs=ja(Q,(e,{get:t})=>{return tUs;/*teenet:full-access-no-setup*/if(e==null||e!==`local`)', 'Windows sandbox setup requirement');
 }
 
+export function patchPinnedPetIsolation(source, version) {
+  if (version !== '26.901.51231') throw new Error('Unsupported pet baseline: ' + version);
+  source = replaceExact(source, 'async restoreOpenState(e){this.globalState.get(`electron-avatar-overlay-open`)', 'async restoreOpenState(e){return;/*codex:no-pet-restore*/this.globalState.get(`electron-avatar-overlay-open`)', 'pet state restoration');
+  source = replaceExact(source, 'async prewarm(e){if(this.window!=null||this.openingWindowPromise!=null||this.isAppQuitting)return;', 'async prewarm(e){return;/*codex:no-pet-prewarm*/if(this.window!=null||this.openingWindowPromise!=null||this.isAppQuitting)return;', 'pet prewarm');
+  // All callers already handle null (quitting/stale window sequence). Keep
+  // that contract so background presentation cannot create an overlay either.
+  return replaceExact(source, 'async ensureWindow(e){if(this.isAppQuitting)return null;let t=this.closingWindow;', 'async ensureWindow(e){return null;/*codex:no-pet-window*/if(this.isAppQuitting)return null;let t=this.closingWindow;', 'pet window creation');
+}
+
 export function patchPinnedModelCommand(source, version) {
   if (version !== '26.901.51231') throw new Error('Unsupported composer baseline: ' + version);
   // pUr passes the projected catalog to Pas/Las/Ras as a layout-effect
@@ -136,6 +145,7 @@ export function patchExtractedBundle(root) {
       `, 'native RPC boundary ' + rel);
     }
     if (rel === mainFile) {
+      if (current) source = patchPinnedPetIsolation(source, pkg.version);
       source = patchPinnedStartupControls(source, 'native');
       source = 'const _teenetPolicy=require("../../teenet/policy.cjs");\n' + source;
       source = replaceExact(source, current ? 'A=(e,t)=>{let r=n.Ht({commandId:e});' : 'k=(e,t)=>{let r=n.Ut({commandId:e});', current ? 'A=(e,t)=>{const hidden=_teenetPolicy.blockedMenuItem(e);if(hidden)return hidden;let r=n.Ht({commandId:e});' : 'k=(e,t)=>{const hidden=_teenetPolicy.blockedMenuItem(e);if(hidden)return hidden;let r=n.Ut({commandId:e});', 'native menu references to removed commands');

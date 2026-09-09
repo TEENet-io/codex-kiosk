@@ -189,6 +189,10 @@ ai-env-mgr 相关代码位于 `/root/pp_home/windows-pc/ai-env-mgr`。本次任�
 | `codex-only-local-26.901.51231-b2-portable.zip` | `6d5fa9f0fee453254f6b3eef7e7586a921ebbea7d5b17ba2d300baa3a2b3378d` |
 | 整个 Actions 下载 ZIP | `6827c8967f96a22037f2bf38d19040ff797f9b5aa46595e102a9064d18e69d28` |
 
+### Codex 26.901.51231-b3：暂时屏蔽宠物（2026-09-09）
+
+用户确认 b2 仍报错，要求先关闭宠物验证。`policy.cjs` 关闭入口、快捷键、gate 与消息；`patchPinnedPetIsolation` 针对固定原生管理器停止恢复和预加载，并使 `ensureWindow` 返回已支持的 null。保留用户原始宠物状态及 Provider、模型、凭据、会话。安装测试断言旧状态为 true 时也没有 avatar renderer 或窗口启动日志；保留模型连续切换验证。构建验收和下载待完成后补充。本节优先于上方历史功能表中“保留宠物”的描述。
+
 ### Codex 26.901.51231-b1：恢复原安装名称（2026-09-09）
 
 构建提交：`c778b1500d179a295d9bbfde5cf6cb999a59186f`；[Windows 构建与验收](https://github.com/TEENet-io/codex-kiosk/actions/runs/34332567479)。

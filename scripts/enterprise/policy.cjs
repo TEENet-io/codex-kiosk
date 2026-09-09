@@ -6,6 +6,7 @@
 })(typeof globalThis === 'object' ? globalThis : this, function () {
   'use strict';
   const disabledGates = Object.freeze({
+    '2679188970': 'pet overlay isolation test',
     '2106641128': 'experimental settings', '3693343337': 'model settings',
     '3026692602': 'workspace dependencies', '410262010': 'browser agent',
     '410065390': 'Chrome mentions', '4250630194': 'in-app browser',
@@ -26,7 +27,7 @@
     'computerUse', 'computerUseNodeRepl', 'computerUseAutoInstall', 'browserUseTinysky',
     'browserExtensions', 'browserSettingsCloudSync', 'inAppBrowserUseHistory', 'cuaPIP',
     'codexAppTools', 'userWriting',
-    'ambientSuggestions',
+    'ambientSuggestions', 'avatarOverlay',
   ]);
   const removedPlugins = Object.freeze(['browser', 'chrome', 'computer-use', 'unified-computer-use', 'codex-app-tools', 'user-writing']);
   const approvedBundledPlugins = Object.freeze(['documents', 'spreadsheets', 'presentations', 'latex', 'deep-research', 'visualize', 'sites']);
@@ -40,7 +41,7 @@
   ]);
   const preferences = Object.freeze([
     ['appearance', '外观'], ['voice', '语音'],
-    ['keyboard-shortcuts', '快捷键'], ['data-controls', '归档对话'], ['pets', '宠物'],
+    ['keyboard-shortcuts', '快捷键'], ['data-controls', '归档对话'],
   ]);
   const blockedCommands = new Set([
     'settings', 'codexMicroSettings', 'mcpSettings', 'personalitySettings',
@@ -52,6 +53,7 @@
     'composer.captureAppshot', 'switchToChat', 'switchToWork',
     'switchToMode1', 'switchToMode2', 'togglePriorityFilter',
     'temporaryChat', 'quickChat', 'focusQuickChat',
+    'openPetOverlay', 'tuckAwayPetOverlay', 'openAvatarOverlay',
   ]);
   function commandAllowed(id) {
     return typeof id !== 'string' || (!blockedCommands.has(id) && !/^(?:git\.|environmentAction\d+$)/.test(id));
@@ -70,6 +72,7 @@
     try { route = decodeURIComponent(new URL(input, 'https://employee.invalid').pathname); }
     catch { return false; }
     if (route === '/settings') return false;
+    if (route === '/avatar-overlay') return false;
     if (route.startsWith('/settings/')) return preferences.some(([slug]) => route === '/settings/' + slug);
     return !/^\/(?:automations|remote|remote-connections|codex-mobile|pull-requests|scratchpad|chronicle|computer-use|browser-use|import|profile|account)(?:\/|$)/.test(route);
   }
@@ -93,6 +96,7 @@
   function messageDenial(message) {
     const type = message?.type;
     if (typeof type !== 'string') return null;
+    if (type.startsWith('avatar-overlay-')) return reason;
     if (['open-config-toml', 'open-extension-settings', 'open-browser-tab', 'open-browser-in-main-window', 'reload-bundled-plugins', 'settings-delete-targeted'].includes(type)) return reason;
     if (/^(?:pending-worktree-|browser-sidebar-|browser-use-|computer-use-|computer-history\/)/.test(type)) return reason;
     if (type === 'navigate-to-route' && !routeAllowed(message.path)) return reason;
@@ -158,7 +162,7 @@
       return typeof value === 'object' && hidden.has(value);
     }
     return function guarded(type, props, key) {
-      if (props && 'onOpenSettings' in props && 'onLogOut' in props) props = { ...props, onOpenProfile: undefined, onOpenWorkspaceSettings: undefined, onLogOut: undefined, onCopyUserId: undefined, identityItems: null };
+      if (props && 'onOpenSettings' in props && 'onLogOut' in props) props = { ...props, onTogglePet: undefined, onOpenProfile: undefined, onOpenWorkspaceSettings: undefined, onLogOut: undefined, onCopyUserId: undefined, identityItems: null };
       if (typeof props?.path === 'string' && props.element && props.path !== '/settings' && !routeAllowed(props.path.startsWith('/') ? props.path : '/' + props.path)) {
         return jsx(type, { ...props, element: jsx('div', { role: 'status', className: 'p-6', children: reason }) }, key);
       }
