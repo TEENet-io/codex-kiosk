@@ -41,7 +41,8 @@ if (customCatalog) {
   catalog = path.join(home, 'models.json').replaceAll('\\', '/');
   fs.writeFileSync(catalog, JSON.stringify(gatewayCatalogFixture(template)));
 }
-const config = `model = "${customCatalog ? 'deepseek-v3.2' : 'gpt-5.6'}"\nmodel_provider = "preview"\nmodel_catalog_json = ${JSON.stringify(catalog)}\n[model_providers.preview]\nname = "Gateway fixture"\nbase_url = "http://127.0.0.1:9/v1"\nwire_api = "responses"\nexperimental_bearer_token = "preview-not-a-real-key"\n`;
+const config = `model = "${customCatalog ? 'deepseek-v3.2' : 'gpt-5.6'}"\nmodel_provider = "preview"\nmodel_catalog_json = ${JSON.stringify(catalog)}\n[model_providers.preview]\nname = "Gateway fixture"\nbase_url = "http://127.0.0.1:9/v1"\nwire_api = "responses"\nexperimental_bearer_token = "preview-not-a-real-key"\n`
+  + (diagnosticAuth ? `\n[desktop]\nlocaleOverride = ${JSON.stringify(diagnosticLocale)}\n` : '');
 fs.writeFileSync(path.join(home, 'config.toml'), config);
 if (diagnosticAuth !== 'bearer-only') {
   const jwt = claims => Buffer.from('{}').toString('base64url') + '.' + Buffer.from(JSON.stringify(claims)).toString('base64url') + '.fixture';
