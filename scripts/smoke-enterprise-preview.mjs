@@ -254,6 +254,22 @@ try {
   assert.ok(!homeText.includes('Finish Windows setup'), 'full-access chat does not require environment setup');
   assert.ok(!homeText.includes('Introducing GPT-'), 'model promotion removed');
   result.checks.push('employee home without scheduled navigation, environment setup or model promotion');
+  if (diagnosticAuth && current) {
+    await evaluate(() => {
+      const editor = document.querySelector('[contenteditable="true"][role="textbox"], .ProseMirror[contenteditable="true"]');
+      if (!editor) throw new Error('Composer editor not found');
+      editor.focus();
+    });
+    await send('Input.insertText', { text: '/model' });
+    await delay(5000);
+    await capture('01-model-command.png');
+    assert.ok(!await evaluate(() => /Something went wrong|hit a snag/.test(document.body.innerText)), 'focused composer slash command does not trigger update loop');
+    await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'a', code: 'KeyA', windowsVirtualKeyCode: 65, modifiers: 2 });
+    await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'a', code: 'KeyA', windowsVirtualKeyCode: 65, modifiers: 2 });
+    await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Backspace', code: 'Backspace', windowsVirtualKeyCode: 8 });
+    await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Backspace', code: 'Backspace', windowsVirtualKeyCode: 8 });
+    result.checks.push('focused composer slash command without recursive updates');
+  }
   const navigate = async route => {
     await evaluate(async ({ route, current }) => {
       const app = await import(current ? '/assets/app-initial-f87238153a19.js' : '/assets/app-initial-TxV8Ik1J.js');
