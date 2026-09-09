@@ -292,18 +292,29 @@ try {
         await send('Input.dispatchMouseEvent', { type: 'mouseMoved', ...point });
         await send('Input.dispatchMouseEvent', { type: 'mousePressed', ...point, button: 'left', clickCount: 1 });
         await send('Input.dispatchMouseEvent', { type: 'mouseReleased', ...point, button: 'left', clickCount: 1 });
-        await waitFor(() => document.querySelector('[data-model-picker-model-row]') || [...document.querySelectorAll('[role^="menuitem"], [role="option"]')].some(item => /Devstral|Kimi/.test(item.textContent)));
-        // The retained legacy picker nests model choices below reasoning.
-        await evaluate(() => document.querySelector('[data-model-picker-model-row]')?.closest('[role^="menuitem"]')?.click());
-        await waitFor(() => [...document.querySelectorAll('[role^="menuitem"], [role="option"]')].some(item => /Devstral|Kimi/.test(item.textContent)));
+        await waitFor(() => document.querySelector('[data-model-picker-view-toggle], [data-model-picker-model-row]') || [...document.querySelectorAll('[role^="menuitem"], [role="option"]')].some(item => /Devstral|Kimi/.test(item.textContent) && !item.closest('[inert], [hidden], [aria-hidden="true"]')));
+        // The new picker keeps an inert model list beside its power slider;
+        // enter the model view before selecting an actual visible option.
+        await evaluate(() => {
+          const toggle = document.querySelector('[data-model-picker-view-toggle]');
+          if (toggle) toggle.click();
+          else document.querySelector('[data-model-picker-model-row]')?.closest('[role^="menuitem"]')?.click();
+        });
+        await waitFor(() => [...document.querySelectorAll('[role^="menuitem"], [role="option"]')].some(item => /Devstral|Kimi/.test(item.textContent) && item.getClientRects().length && !item.closest('[inert], [hidden], [aria-hidden="true"]')));
         await capture('01-model-picker.png');
         await evaluate(name => {
-          const item = [...document.querySelectorAll('[role^="menuitem"], [role="option"]')].find(item => item.textContent.includes(name));
+          const item = [...document.querySelectorAll('[role^="menuitem"], [role="option"]')].find(item => item.textContent.includes(name) && item.getClientRects().length && !item.closest('[inert], [hidden], [aria-hidden="true"]'));
           if (!item) throw new Error('Missing model option: ' + name);
+          item.focus();
           item.click();
         }, to);
         await delay(2000);
-        assert.ok(await evaluate(name => [...document.querySelectorAll('button')].some(button => button.textContent.includes(name)), to), 'selected model shown in composer');
+        // Selecting returns to the power slider and deliberately keeps the
+        // popup open. Dismiss it before attempting to open the next picker.
+        await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
+        await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
+        await waitFor(() => ![...document.querySelectorAll('[data-model-picker-view]')].some(menu => menu.getClientRects().length && !menu.closest('[inert], [hidden], [aria-hidden="true"]')));
+        assert.ok(await evaluate(name => [...document.querySelectorAll('button')].some(button => button.textContent.includes(name) && button.getClientRects().length && !button.closest('[role="menu"], [role="listbox"], [inert], [hidden], [aria-hidden="true"]')), to), 'selected model shown in composer');
       };
       await chooseModel('DeepSeek V3.2', 'Kimi K2.5');
       await chooseModel('Kimi K2.5', 'DeepSeek V3.2');
