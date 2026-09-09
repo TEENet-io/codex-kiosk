@@ -292,7 +292,7 @@ try {
         await send('Input.dispatchMouseEvent', { type: 'mouseMoved', ...point });
         await send('Input.dispatchMouseEvent', { type: 'mousePressed', ...point, button: 'left', clickCount: 1 });
         await send('Input.dispatchMouseEvent', { type: 'mouseReleased', ...point, button: 'left', clickCount: 1 });
-        await waitFor(() => document.querySelector('[data-model-picker-view-toggle], [data-model-picker-model-row]') || [...document.querySelectorAll('[role^="menuitem"], [role="option"]')].some(item => /Devstral|Kimi/.test(item.textContent) && !item.closest('[inert], [hidden], [aria-hidden="true"]')));
+        await waitFor(() => Boolean(document.querySelector('[data-model-picker-view-toggle], [data-model-picker-model-row]')) || [...document.querySelectorAll('[role^="menuitem"], [role="option"]')].some(item => /Devstral|Kimi/.test(item.textContent) && !item.closest('[inert], [hidden], [aria-hidden="true"]')));
         // The new picker keeps an inert model list beside its power slider;
         // enter the model view before selecting an actual visible option.
         await evaluate(() => {
