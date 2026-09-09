@@ -123,7 +123,13 @@ try {
   };
   const send = (method, params) => deadline(cdp.send(method, params), method);
   const errors = [];
+  const consoleErrors = [];
+  result.rendererErrors = errors;
+  result.consoleErrors = consoleErrors;
   cdp.on('Runtime.exceptionThrown', event => errors.push(event.exceptionDetails.exception?.description || event.exceptionDetails.text));
+  cdp.on('Runtime.consoleAPICalled', event => {
+    if (event.type === 'error') consoleErrors.push(event.args.map(arg => arg.description || String(arg.value)).join(' '));
+  });
   await send('Runtime.enable');
   await send('Runtime.runIfWaitingForDebugger');
   await send('Page.bringToFront');
@@ -159,6 +165,7 @@ try {
   };
   await capture('01-home.png');
   const homeText = await evaluate(() => document.body.innerText);
+  assert.ok(!/ChatGPT hit a snag|Something went wrong\. Try again|Update ChatGPT/.test(homeText), 'home rendered without an application error boundary');
   assert.ok(!/^Scheduled$/m.test(homeText), 'scheduled navigation removed');
   assert.ok(!homeText.includes('Finish Windows setup'), 'full-access chat does not require environment setup');
   assert.ok(!homeText.includes('Introducing GPT-'), 'model promotion removed');

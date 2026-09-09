@@ -141,6 +141,10 @@
   // through fragments and remove the interactive ancestor, not just its label.
   function createJsxGuard(jsx) {
     const hidden = new WeakSet();
+    // Native context menus and Slot wrappers read/clone their child element.
+    // Preserve that contract without rendering DOM or retaining action props.
+    function HiddenControl() { return null; }
+    const removed = key => jsx(HiddenControl, {}, key);
     function marked(value, depth = 0) {
       if (!value || depth > 3) return false;
       if (typeof value === 'string') return hiddenTexts.has(value);
@@ -159,10 +163,10 @@
       const descendantHidden = marked(props?.children) || marked(props?.title) || marked(props?.label) || marked(props?.tooltipContent) || marked(props?.['aria-label']);
       // Settings fields render their controls in a separate prop, outside the
       // label subtree. Remove the field before that control can be rendered.
-      if (props && 'control' in props && marked(props.label)) return null;
+      if (props && 'control' in props && marked(props.label)) return removed(key);
       const actionable = props && (typeof props.onClick === 'function' || typeof props.onSelect === 'function' || props.href != null || props.to != null || type === 'button' || type === 'a' || props.role === 'menuitem');
-      if (descendantHidden && actionable) return null;
-      if (typeof props?.to === 'string' && !routeAllowed(props.to) && props.to !== '/settings') return null;
+      if (descendantHidden && actionable) return removed(key);
+      if (typeof props?.to === 'string' && !routeAllowed(props.to) && props.to !== '/settings') return removed(key);
       const element = jsx(type, props, key);
       if (element && typeof element === 'object' && (ownHidden || descendantHidden)) hidden.add(element);
       return element;

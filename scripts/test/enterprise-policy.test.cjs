@@ -43,9 +43,10 @@ test('removing a blocked menu item preserves adjacent chat and voice actions', (
   const voiceLabel = jsx('FormattedMessage', { id: 'codex.command.composer.startDictation' });
   const blocked = jsx('MenuItem', { onSelect() {}, children: blockedLabel });
   const voice = jsx('MenuItem', { onSelect() {}, children: voiceLabel });
-  assert.equal(blocked, null);
+  assert.equal(blocked.type(blocked.props), null);
+  assert.deepEqual(blocked.props, {}, 'removed action retains no label or handler');
   assert.ok(voice);
-  assert.deepEqual(jsx('div', { children: [blocked, voice] }).props.children, [null, voice]);
+  assert.deepEqual(jsx('div', { children: [blocked, voice] }).props.children, [blocked, voice]);
 });
 
 test('native menus can reference removed commands without resolving their deleted registry entries', () => {
@@ -59,7 +60,9 @@ test('a restricted preference removes its entire field while retaining ordinary 
   const jsx = policy.createJsxGuard((type, props) => ({ type, props }));
   const label = jsx('FormattedMessage', { id: 'settings.general.realtimeVoiceScreenContext.label' });
   const control = jsx('Switch', { checked: true, onChange() {} });
-  assert.equal(jsx('SettingsRow', { label, control }), null);
+  const removed = jsx('SettingsRow', { label, control });
+  assert.equal(removed.type(removed.props), null);
+  assert.deepEqual(removed.props, {}, 'removed field cannot render its control');
   assert.ok(jsx('SettingsRow', { label: 'Voice', control }));
 });
 

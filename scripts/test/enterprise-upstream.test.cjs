@@ -6,6 +6,21 @@ const path = require('node:path');
 const { parse } = require('acorn');
 const source = fs.readFileSync(path.join(__dirname, '../patch-app-asar.mjs'), 'utf8');
 const functions = new Map();
+
+test('hidden sidebar actions preserve the new native context-menu child element contract', () => {
+  const policy = require('../enterprise/policy.cjs');
+  const jsx = policy.createJsxGuard((type, props, key) => ({ type, props, key }));
+  const label = jsx('FormattedMessage', { id: 'sidebarElectron.inboxRouteNavLink' });
+  const action = jsx('SidebarItem', { label, onClick() { throw new Error('blocked action ran'); } });
+  // 26.901 e8i reads and clones its child without a nullable-child fallback.
+  const contextMenu = child => ({ ...child, props: { ...child.props, onClick: child.props.onClick } });
+  const trigger = contextMenu(action);
+  assert.equal(typeof trigger.type, 'function');
+  assert.equal(trigger.type(trigger.props), null, 'no rendered DOM or focusable action');
+  assert.equal(trigger.props.onClick, undefined, 'blocked handler never reaches the wrapper');
+  const voice = jsx('button', { children: 'Voice', onClick() {} });
+  assert.equal(jsx('nav', { children: [action, voice] }).props.children[1], voice, 'adjacent normal action survives');
+});
 function walk(node) {
   if (!node || typeof node !== 'object') return;
   if (node.type === 'FunctionDeclaration') functions.set(node.id.name, source.slice(node.start, node.end));
