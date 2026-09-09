@@ -276,12 +276,19 @@ try {
     result.checks.push('focused composer slash command without recursive updates');
     if (customCatalog) {
       const chooseModel = async (from, to) => {
+        await send('Page.bringToFront');
+        for (let attempt = 0; attempt < 30; attempt++) {
+          if (await evaluate(name => [...document.querySelectorAll('button')].some(button => button.textContent.includes(name) && !button.disabled && button.getAttribute('aria-disabled') !== 'true'), from)) break;
+          await delay(1000);
+        }
         const point = await evaluate(name => {
           const button = [...document.querySelectorAll('button')].find(button => button.textContent.includes(name));
           if (!button) throw new Error('Missing model picker: ' + name);
+          if (button.disabled || button.getAttribute('aria-disabled') === 'true') throw new Error('Model picker remained disabled: ' + name);
           const box = button.getBoundingClientRect();
           return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
         }, from);
+        await send('Input.dispatchMouseEvent', { type: 'mouseMoved', ...point });
         await send('Input.dispatchMouseEvent', { type: 'mousePressed', ...point, button: 'left', clickCount: 1 });
         await send('Input.dispatchMouseEvent', { type: 'mouseReleased', ...point, button: 'left', clickCount: 1 });
         await waitFor(() => document.querySelector('[data-model-picker-model-row]') || [...document.querySelectorAll('[role^="menuitem"], [role="option"]')].some(item => /Devstral|Kimi/.test(item.textContent)));
