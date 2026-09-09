@@ -18,7 +18,7 @@ $report = Join-Path $reportDir 'startup-trace.jsonl'
 $backup = $init + '.backup-' + $id
 $original = [System.IO.File]::ReadAllBytes($init)
 [System.IO.File]::WriteAllBytes($backup, $original)
-$suffix = "`n;require(" + (ConvertTo-Json -InputObject $modulePath -Compress) + ");`n"
+$suffix = "`n;if(process.env.CODEX_STARTUP_TRACE_FILE){require(" + (ConvertTo-Json -InputObject $modulePath -Compress) + ");}`n"
 $patched = $original + [System.Text.Encoding]::UTF8.GetBytes($suffix)
 $previousOutput = $env:CODEX_STARTUP_TRACE_FILE
 $patchedHash = $null

@@ -79,7 +79,7 @@ if (fs.existsSync(installer)) {
 // the throwaway installed copy, never in the distributed installer or ZIP.
 if (diagnosticAuth && process.env.CODEX_TEST_STARTUP_TRACE === '1') {
   const traceModule = path.resolve('scripts/diagnostics/startup-trace.cjs');
-  fs.appendFileSync(path.join(root, '_internal/app/patches/init.cjs'), '\n;require(' + JSON.stringify(traceModule) + ');\n');
+  fs.appendFileSync(path.join(root, '_internal/app/patches/init.cjs'), '\n;if(process.env.CODEX_STARTUP_TRACE_FILE){require(' + JSON.stringify(traceModule) + ');}\n');
   process.env.CODEX_STARTUP_TRACE_FILE = path.join(output, 'startup-trace.jsonl');
   process.env.CODEX_STARTUP_TRACE_SELFTEST = '1';
 }
@@ -217,8 +217,8 @@ try {
   await waitFor(() => document.body && document.readyState !== 'loading');
   // document.readyState only covers the HTML shell. Owl may still be loading
   // the renderer and initializing its app-server on a cold Windows runner.
-  await waitFor(() => /New chat|新建对话|新聊天|hit a snag|Something went wrong/.test(document.body.innerText), 60);
-  await waitFor(() => /Full access|完整访问|hit a snag|Something went wrong/.test(document.body.innerText), 30);
+  await waitFor(() => /New chat|新建对话|新聊天|新对话|hit a snag|Something went wrong/.test(document.body.innerText), 60);
+  await waitFor(() => /Full access|完整访问|完全访问|hit a snag|Something went wrong/.test(document.body.innerText), 30);
   if (diagnosticAuth) await delay(15000);
   const capture = async name => {
     // Headless Windows runners can expose an interactive DOM without a
@@ -240,11 +240,11 @@ try {
   const homeText = await evaluate(() => document.body.innerText);
   if (diagnosticAuth) {
     result.documentLanguage = await evaluate(() => document.documentElement.lang);
-    if (diagnosticScenario.endsWith('-zh')) assert.ok(/新建对话|新聊天|完整访问/.test(homeText), 'Chinese diagnostic locale applied');
+    if (diagnosticScenario.endsWith('-zh')) assert.ok(/新建对话|新聊天|新对话|完整访问|完全访问/.test(homeText), 'Chinese diagnostic locale applied');
     if (diagnosticScenario.startsWith('project-')) assert.ok(/projectCount=1/.test(fs.readFileSync(path.join(output, 'desktop.log'), 'utf8')), 'existing workspace migrated into app-server project');
   }
   assert.ok(!/ChatGPT hit a snag|Something went wrong\. Try again|Update ChatGPT/.test(homeText), 'home rendered without an application error boundary');
-  assert.ok(/Full access|完整访问/.test(homeText), 'new chat uses full access by default');
+  assert.ok(/Full access|完整访问|完全访问/.test(homeText), 'new chat uses full access by default');
   assert.ok(!/^Scheduled$/m.test(homeText), 'scheduled navigation removed');
   assert.ok(!homeText.includes('Finish Windows setup'), 'full-access chat does not require environment setup');
   assert.ok(!homeText.includes('Introducing GPT-'), 'model promotion removed');

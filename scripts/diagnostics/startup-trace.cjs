@@ -38,9 +38,7 @@ function attachTrace(contents, write, durationMs = 120000) {
     exceptions++;
     // Resume before doing synchronous report I/O. Never inspect paused scopes.
     send('Debugger.resume').catch(stop);
-    if (focused || frames.some(frame => frame.function === 'codexStartupTraceProbe') || exceptions <= 40) {
-      write({ event: 'exception', window: contents.id, reason: params.reason, focused, frames: frames.slice(0, 30) });
-    }
+    write({ event: 'exception', window: contents.id, reason: params.reason, focused, frames: frames.slice(0, focused ? 30 : 12) });
     if (exceptions >= 2000) stop();
   });
   try { connection.attach('1.3'); }

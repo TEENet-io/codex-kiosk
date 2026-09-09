@@ -7,6 +7,22 @@ permissions:
   contents: read
   actions: read
 jobs:
+  collector:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - run: node --test scripts/test/startup-trace.test.cjs
+      - name: Verify temporary launcher restoration
+        shell: powershell
+        run: ./scripts/test/startup-trace-launcher.ps1
+      - uses: actions/upload-artifact@v7
+        with:
+          name: Codex-startup-diagnostic
+          path: scripts/diagnostics/
+          retention-days: 7
   startup:
     runs-on: windows-latest
     timeout-minutes: 25
