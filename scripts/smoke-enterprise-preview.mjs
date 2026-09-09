@@ -13,7 +13,7 @@ const diagnosticAuth = process.argv[4];
 if (diagnosticAuth) assert.ok(['control', 'apikey', 'bearer-only', 'stale-chatgpt'].includes(diagnosticAuth));
 const customCatalog = diagnosticAuth && diagnosticAuth !== 'control';
 const diagnosticScenario = process.argv[5] || 'empty-en';
-assert.ok(['empty-en', 'empty-zh', 'project-en', 'project-zh'].includes(diagnosticScenario));
+assert.ok(['empty-en', 'empty-zh', 'project-en', 'project-zh', 'pet-en', 'pet-zh'].includes(diagnosticScenario));
 const diagnosticLocale = diagnosticScenario.endsWith('-zh') ? 'zh-CN' : 'en-US';
 
 if (process.platform !== 'win32') throw new Error('Enterprise desktop smoke requires Windows');
@@ -24,6 +24,11 @@ fs.mkdirSync(output, { recursive: true });
 const isolated = fs.mkdtempSync(path.join(os.tmpdir(), 'teenet-smoke-'));
 const home = path.join(isolated, 'codex');
 fs.mkdirSync(home, { recursive: true });
+if (diagnosticAuth && diagnosticScenario.startsWith('pet-')) {
+  fs.writeFileSync(path.join(home, '.codex-global-state.json'), JSON.stringify({
+    'electron-avatar-overlay-open': true,
+  }));
+}
 if (diagnosticAuth && diagnosticScenario.startsWith('project-')) {
   const project = path.join(isolated, 'employee-project');
   fs.mkdirSync(project);
