@@ -2,7 +2,7 @@
 
 本文件记录企业精简版已实现的改动、保留能力、对应代码及尚未完成的集成项。需求依据为 2026-09-08 TEENet 周会；最近更新：2026-09-09。
 
-当前构建：`26.901.51231-b1`，恢复 Codex 名称与旧安装位置，Windows CI 已通过。下载和适用边界见第 7 节；preview.2 与 preview.1 为历史记录。尚未通过 ai-env-mgr 发布到员工机队。
+当前构建：`26.901.51231-b2`，修复模型命令循环注册，沿用 Codex 名称与安装位置，Windows CI 已通过。下载和适用边界见第 7 节；b1、preview.2 与 preview.1 为历史记录。尚未通过 ai-env-mgr 发布到员工机队。
 
 ## 1. 版本与构建来源
 
@@ -171,6 +171,22 @@
 ai-env-mgr 相关代码位于 `/root/pp_home/windows-pc/ai-env-mgr`。本次任务未修改该仓库，也未发布机队策略。
 
 ## 7. 验证与交付记录
+
+### Codex 26.901.51231-b2：模型命令更新循环（2026-09-09）
+
+构建提交：`59ac95f36cc18d06c9bb48d4b70fb47fd49f82f0`；[Windows 构建与验收](https://github.com/TEENet-io/codex-kiosk/actions/runs/34339897422) 全部通过。
+
+- 员工 trace 定位到 React 更新层级上限及命令注册布局 effect。修复在固定版本 `pUr` 组件内缓存模型投影，避免不变列表的对象引用变化引发重复注册。版本、替换锚点和包 marker 均验证；回归 fixture 与固定原始 MSIX 的函数逐字一致。
+- 132 项脚本回归、18 项网关测试和网关构建通过；新安装包完整性、原生 CLI、静默安装、旧程序替换与用户配置/Skill 保留通过。
+- 新包英文/API Key 与中文/Provider bearer/宠物启动恢复两套页面检查通过，含聚焦输入框输入 `/model`；`rendererErrors=[]`、`consoleErrors=[]`，截图完整。宠物显示和收起保留。
+- 额外诊断 34339897643、34339998122 分别覆盖仅 bearer 和过期 ChatGPT 凭据下的中英文宠物恢复，均通过。原始 b1 的隔离界面也未完全复现员工现场，不能以这些合成测试保证其所有持久状态均正常；需员工安装 b2 回测。真实模型请求、语音通话和远程插件服务没有在本次使用占位凭据的检查中执行。
+- [下载安装器、便携包与报告](https://nightly.link/TEENet-io/codex-kiosk/actions/artifacts/10099713592.zip)（1,386,825,757 字节）；解压后运行 `codex-only-local-26.901.51231-b2-setup.exe`。[仅下载截图与验证报告](https://nightly.link/TEENet-io/codex-kiosk/actions/artifacts/10099679716.zip)。产物保留 14 天，未创建正式 Release。
+
+| b2 文件 | SHA-256 |
+| --- | --- |
+| `codex-only-local-26.901.51231-b2-setup.exe` | `d8efad18a80efe1a7a02cab58b7ffa38b9ff494618ba9cc1f32c5b0a96de0fbb` |
+| `codex-only-local-26.901.51231-b2-portable.zip` | `6d5fa9f0fee453254f6b3eef7e7586a921ebbea7d5b17ba2d300baa3a2b3378d` |
+| 整个 Actions 下载 ZIP | `6827c8967f96a22037f2bf38d19040ff797f9b5aa46595e102a9064d18e69d28` |
 
 ### Codex 26.901.51231-b1：恢复原安装名称（2026-09-09）
 

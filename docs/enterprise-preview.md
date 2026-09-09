@@ -6,7 +6,7 @@
 
 ## 固定构建输入
 
-当前构建 `26.901.51231-b1` 基于官方 Windows x64 MSIX `26.901.6511.0`，SHA-256 为 `fd9ae9eeeeaf11577191ce5a39d0b8f95fa73d591aa3a94f688b84d294d1fa85`。版本、来源与摘要固定在 `config/enterprise-preview.json`。Windows CI 已通过，下载和未覆盖的员工启动异常见[交付记录](enterprise-change-inventory.md#7-验证与交付记录)。官方稳定下载地址会滚动更新；若摘要不符，构建立刻失败，必须提供保存的固定版本 MSIX，不能自动接受新包。
+当前构建 `26.901.51231-b2` 基于官方 Windows x64 MSIX `26.901.6511.0`，SHA-256 为 `fd9ae9eeeeaf11577191ce5a39d0b8f95fa73d591aa3a94f688b84d294d1fa85`。版本、来源与摘要固定在 `config/enterprise-preview.json`。Windows CI 已通过，下载和员工实际状态的回测边界见[交付记录](enterprise-change-inventory.md#7-验证与交付记录)。官方稳定下载地址会滚动更新；若摘要不符，构建立刻失败，必须提供保存的固定版本 MSIX，不能自动接受新包。
 
 `carrier` 仍使用已发布的 `offline-v26.810.52044-b1`，仅提供启动器、模型目录、Skill 种子和固定办公插件。构建删除载体的整套 `_internal/app`，换入官方新版 app（包括 EXE、CLI、原生模块和前端），再执行独立运行补丁与企业策略。原生组件不会与旧版混装。
 
@@ -14,7 +14,7 @@
 npm ci
 node scripts/build-enterprise-preview.mjs --source-msix /path/to/ChatGPT-26.901.6511.0-x64.msix --output dist/enterprise-current
 # Windows 上额外传 --installer 生成安装器，然后运行桌面验收
-node scripts/smoke-enterprise-preview.mjs dist/enterprise-current/codex-only-local-26.901.51231-b1 dist/enterprise-current/smoke
+node scripts/smoke-enterprise-preview.mjs dist/enterprise-current/codex-only-local-26.901.51231-b2 dist/enterprise-current/smoke
 ```
 
 新版适配保留原企业功能清单，并额外禁用上游新增的统一 Computer Use 插件、自动化应用工具插件、写作个性化插件及浏览器扩展/同步开关。`--enterprise` 不执行浏览器、Computer Use、工作环境和 Activity 入口的启用补丁；静态 gate 替换与运行时统一遵循企业策略。

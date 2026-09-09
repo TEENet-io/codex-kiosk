@@ -227,8 +227,8 @@ try {
   await waitFor(() => document.body && document.readyState !== 'loading');
   // document.readyState only covers the HTML shell. Owl may still be loading
   // the renderer and initializing its app-server on a cold Windows runner.
-  await waitFor(() => /New chat|新建对话|新聊天|新对话|hit a snag|Something went wrong/.test(document.body.innerText), 60);
-  await waitFor(() => /Full access|完整访问|完全访问|hit a snag|Something went wrong/.test(document.body.innerText), 30);
+  await waitFor(() => /New chat|新建对话|新聊天|新对话|hit a snag|Something went wrong/.test(document.body?.innerText || ''), 60);
+  await waitFor(() => /Full access|完整访问|完全访问|hit a snag|Something went wrong/.test(document.body?.innerText || ''), 30);
   if (diagnosticAuth) await delay(15000);
   const capture = async name => {
     // Headless Windows runners can expose an interactive DOM without a
