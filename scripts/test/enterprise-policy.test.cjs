@@ -2,6 +2,17 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const policy = require('../enterprise/policy.cjs');
 
+test('native startup can retire only removed bundled plugins without allowing employee uninstalls', () => {
+  for (const name of policy.removedPlugins) {
+    const request = { method: 'plugin/uninstall', params: { pluginId: name + '@openai-bundled' } };
+    assert.equal(policy.internalRequestDenial(request), null);
+    assert.ok(policy.requestDenial(request));
+  }
+  for (const pluginId of ['documents@openai-bundled', 'browser@employee', 'browser@openai-bundled-extra', undefined]) {
+    assert.ok(policy.internalRequestDenial({ method: 'plugin/uninstall', params: { pluginId } }));
+  }
+});
+
 test('employee requests cannot install plugins or change managed configuration', () => {
   for (const method of ['plugin/install', 'plugin/uninstall', 'account/login/start', 'account/logout', 'mcpServer/oauth/login', 'remoteControl/enable']) {
     assert.ok(policy.requestDenial({ method, params: {} }), method);

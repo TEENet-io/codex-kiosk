@@ -102,6 +102,9 @@
     // Native startup maintains its own runtime config; employee config writes
     // are checked separately at the renderer RPC boundary.
     if (request?.method?.startsWith('config/')) return null;
+    // Startup reconciliation retires bundled capabilities removed by this
+    // package. Employee RPCs still go through requestDenial and stay blocked.
+    if (request?.method === 'plugin/uninstall' && removedPlugins.some(name => request.params?.pluginId === name + '@openai-bundled')) return null;
     const normalize = value => typeof value === 'string' ? value.replaceAll('\\', '/').replace(/\/$/, '').toLowerCase() : null;
     const trusted = candidate => typeof candidate === 'string' && !candidate.split(/[\\/]/).includes('..') && trustedMarketplacePaths.some(p => normalize(p) === normalize(candidate) || normalize(p) + '/.agents/plugins/marketplace.json' === normalize(candidate));
     if (request?.method === 'marketplace/add' && trusted(request.params?.source)) return null;

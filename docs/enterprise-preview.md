@@ -33,6 +33,16 @@ node scripts/smoke-enterprise-preview.mjs dist/enterprise-current/codex-only-loc
 
 ## 历史依据
 
+### 2026-09-09 员工启动诊断
+
+新日志中的实际路径为 `C:\Users\weipeng\Codex`，CLI 0.153.4 握手、配置读取与模型列表读取成功，但 AppRoutes 在 `app-primary-428a0a65766f.js` 的 `pUr` 重复报空消息 Error。移除旧 notify 配置后仍复现，不能以删除旧 Tools 目录或重新登录作为已确认的解决方案。
+
+诊断运行 34336132749 的英文空配置/已有项目两项通过。运行 34336786262 的 `project-zh` 首页文本和截图确认中文、已有项目、DeepSeek V3.2 和完全访问均已渲染，无 renderer error；测试失败来自断言未覆盖「新对话」「完全访问」两个真实译文，已修正测试匹配。该证据只覆盖合成配置，不能推断员工完整状态正常。
+
+`scripts/diagnostics/Trace-CodexStartup.cmd` 为针对 26.901 的临时采集入口：默认定位 `%USERPROFILE%\Codex`，要求先退出已有进程，备份启动注入文件后加入本地 debugger 监听，120 秒后停止监听，程序退出后恢复文件原始字节。报告不保存异常消息、变量、RPC 内容或凭据，不打开远程调试端口。单元测试覆盖异常后恢复执行与信息过滤，Windows launcher 测试覆盖正常/缺少报告时的文件与环境恢复；真实 Electron 验证由诊断 workflow 执行。
+
+另一个独立问题发生在原生 bundled 插件同步：它需要清理已移除的 `browser@openai-bundled`，却被员工卸载限制阻止。共享策略仅对原生请求、明确移除的 bundled 插件 ID 放行；renderer 请求和自定义插件仍拒绝。目标回归通过，尚未作为新安装包交付，也没有将其认定为 `pUr` 根因。
+
 - Claude 2026-08-14 至 08-16：适配 `26.810`、关闭 Web 打包、修复补丁与验证器漂移，构建使用 GitHub Windows runner。
 - Codex 2026-08-23：将每日版本探测与完整构建拆开，添加固定 URL、版本及 SHA-256 的 archive 源；没有取得可归档的历史 MSIX，因而默认源仍为动态源。
 - Codex 2026-09-06：确认客户端、`ai-env-mgr` 管理系统与 LiteLLM 网关的职责划分。
