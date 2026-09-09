@@ -35,6 +35,16 @@ node scripts/smoke-enterprise-preview.mjs dist/enterprise-current/codex-only-loc
 
 ## 历史依据
 
+### 2026-09-09 按员工配置对照 b3
+
+用户确认 b3 仍报错，且 `.codex/auth.json` 的 `auth_mode` 为 `chatgpt`。原验收虽然在 Windows 虚拟机实际安装和操作应用，但使用隔离配置：Provider 为 preview、地址为本地无服务端口、阻断外网，生产 bootstrap 使用独立空 home；不能当作用户环境的精确复现。
+
+测试提交 `38ef3233c28f2fe5839150163909decc5fcd8d77` 增加 `employee-config.mjs`，按用户粘贴内容保留 gateway、真实 base_url、live web search、7200000 超时、followUpQueueMode、带扩展前缀的 marketplace source 和 visualize 开关；仅替换机器 home 路径及使用脱敏占位密钥。生产启动与 UI 检查共享同一 home，取消测试的断网代理。实际运行 b3 原安装器，UI 检查仅在临时副本开启 DevTools，仍使用软件渲染和隔离 Electron 状态。模型目录是合成字段，未包含用户全部原始模板；ChatGPT token 也是合成过期凭据，不能宣称完全相同。
+
+[CI 34364921508](https://github.com/TEENet-io/codex-kiosk/actions/runs/34364921508) 两组（无 auth.json、过期 chatgpt auth.json）均未通过完整验收：主界面、偏好、中文模型往返切换正常，`rendererErrors=[]`、`consoleErrors=[]`，但内置市场报 `marketplace 'openai-bundled' is already added from a different source`，市场初始化断言失败。报告中的 `reconcile_completed` 不能盖过此前的 `marketplace_add_failed`，因此保留失败断言。现场源路径差异涉及扩展前缀与 Windows 长短路径，尚未确定各因素贡献；此故障未造成测试中的 AppRoutes 崩溃，不作为用户启动故障的根因结论。
+
+[带 ChatGPT 状态报告](https://nightly.link/TEENet-io/codex-kiosk/actions/artifacts/10109707675.zip)、[无登录状态报告](https://nightly.link/TEENet-io/codex-kiosk/actions/artifacts/10109673812.zip) 含实际脱敏配置和截图，保留 7 天；本地已核查 `/tmp/codex-employee-chatgpt.zip`。后续需要用户 b3 的新 trace 及原始模型目录来对齐剩余状态，不要求真实 API Key 或 token。
+
 ### 2026-09-09 命令注册更新循环
 
 员工 trace 的首个非预期同步异常为 `ste`（initial bundle 11:27594，React #185），经 `Pzt` 聚合后从 `Pas` 的 store setter（8235:706814）和 `Ras` 的布局 effect（8235:708387）传播。后续 `DetermineComponentFrameRoot` 调用 `pUr` 时产生的 invalid-hook 异常是组件堆栈重建，不是最早的抛错点；Router 的 `Gw` 也会主动抛出并捕获警告异常。

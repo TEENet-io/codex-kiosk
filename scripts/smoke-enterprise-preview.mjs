@@ -384,11 +384,7 @@ try {
   assert.deepEqual(errors, [], 'renderer exceptions');
   assert.ok(!/Uncaught Exception|JavaScript error occurred in the main process/.test(fs.readFileSync(path.join(output, 'desktop.log'), 'utf8')), 'no main process exceptions');
   const marketplaceLog = fs.readFileSync(path.join(output, 'desktop.log'), 'utf8');
-  const marketplaceAdded = marketplaceLog.split('\n').some(line => line.includes('plugin_marketplace_add_succeeded') && /marketplaceName=openai-bundled(?:\s|$)/.test(line));
-  // An explicit employee marketplace is already registered. With the same
-  // home used for production bootstrap, the next launch reuses its files.
-  const marketplaceReused = employeeConfig && marketplaceLog.includes('bundled_plugins_runtime_marketplace_reused') && marketplaceLog.includes('bundled_plugins_reconcile_completed');
-  assert.ok(marketplaceAdded || marketplaceReused, 'approved native bundled marketplace initialized or existing employee marketplace reconciled');
+  assert.ok(marketplaceLog.split('\n').some(line => line.includes('plugin_marketplace_add_succeeded') && /marketplaceName=openai-bundled(?:\s|$)/.test(line)), 'approved native bundled marketplace initialized');
   assert.ok(!marketplaceLog.split('\n').some(line => line.includes('bundled_plugins_marketplace_add_failed') && /marketplaceName=openai-bundled(?:\s|$)/.test(line)), 'approved native bundled marketplace did not fail');
   assert.ok(!fs.readFileSync(path.join(output, 'desktop.log'), 'utf8').includes('bundled_plugins_marketplace_install_failed'), 'approved bundled plugins installed');
   result.checks.push('no renderer exceptions during preference navigation');
