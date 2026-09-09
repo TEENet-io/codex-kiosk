@@ -120,7 +120,7 @@ pwsh -NoProfile -File .\scripts\verify-offline-package.ps1 `
 
 ## 文档
 
-- [企业版完整改动清单](docs/enterprise-change-inventory.md) — 保留/屏蔽项、代码落点、新版适配、安装与验收记录
+- [企业版完整改动清单](docs/enterprise-change-inventory.md) — 34 项原生设置对照表、保留/屏蔽项、代码落点、新版适配、安装与验收记录
 - [构建环境与发布流程](BUILDING.md)
 - [版本适配与维护](docs/版本适配与维护.md) — Codex 更新后如何适配补丁、本地复现方法、故障排查
 - [Codex-only 架构与补丁说明](docs/codex-only-fork-github-actions.md)

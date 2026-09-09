@@ -29,7 +29,7 @@
 
 | 功能 | 最终行为 | 实现与边界 |
 | --- | --- | --- |
-| 完整设置 | 屏蔽，改为“外观与快捷键”精简页面 | 只允许外观、语音、快捷键、归档四个设置子路由；默认打开外观 |
+| 完整设置 | 屏蔽，改为“外观与快捷键”精简页面 | 只允许外观、语音、快捷键、归档、宠物五个设置子路由；默认打开外观 |
 | 模型、连接、隐私等管理配置 | 沿用管理员配置，员工不能从客户端改管理项 | 拦截配置写入 RPC；保留模型、推理强度、推理摘要和服务档位的会话模型操作 |
 | 账户管理 | 收起登录切换、退出、账户/工作区管理等员工入口 | 不捆绑员工密钥，不跳过必要的认证；管理员仍须下发有效配置与凭据 |
 | Worktree / 编码环境 | 隐藏入口、命令、快捷操作及相关原生管理处理器 | 屏蔽创建 Worktree、工作环境保存、远程安装等；普通项目目录和文件能力保留 |
@@ -55,13 +55,60 @@
 
 企业策略的唯一来源是 [policy.cjs](../scripts/enterprise/policy.cjs)。精简页面见 [preferences.js.txt](../scripts/enterprise/preferences.js.txt)。
 
+### 2.1 按程序原生设置项逐项对照
+
+依据官方 `26.901.51231` 的设置注册表（`app-initial-f87238153a19.js` 中的 `SSo`）和设置菜单分组逐项列出，共 **34 项**。名称附英文原名，中文为便于对照的译名；原版会按账号、模式及功能开关决定是否展示，不代表某个账号能同时看到全部项目。企业策略以本仓库 `policy.cjs` 为准。
+
+下表描述 **preview.2**：开放 5 个精简偏好页，屏蔽其余 29 个设置页。preview.1 只有 4 个开放页，宠物尚未恢复；各包验收与下载见第 7 节。“屏蔽设置页”仅指设置入口和路由，不自动表示底层功能被关闭。
+
+| 原生分组 | 程序设置项 | 设置路由 `/settings/…` | 企业版状态 | 说明 |
+| --- | --- | --- | --- | --- |
+| 个人 | 常规 General | `general-settings` | 屏蔽设置页 | 默认权限仍为完整访问；管理配置由管理员预设 |
+| 个人 | 通知 Notifications | `notifications` | 屏蔽设置页 | 不等于关闭所有通知 |
+| 个人 | 导入 Import | `import` | 屏蔽 | 外部配置导入关闭 |
+| 个人 | 个人资料 Profile | `profile` | 屏蔽设置页 | 资料管理入口隐藏 |
+| 个人 | 外观 Appearance | `appearance` | 保留 | 在精简偏好页开放；主题导入导出隐藏 |
+| 个人 | 安全与登录 Security and login | `security` | 屏蔽设置页 | 安全及登录管理不开放给员工 |
+| 个人 | 账户 Account | `account` | 屏蔽设置页 | 管理员统一开号和配置 |
+| 个人 | 语音 Voice | `voice` | 保留 | 语音设置及快捷键保留；屏幕上下文控制关闭 |
+| 个人 | 存储 Storage | `storage` | 屏蔽设置页 | 不删除原有会话或文件 |
+| 个人 | 配置 Configuration | `agent` | 屏蔽设置页 | 模型与连接等管理配置统一预设，聊天模型切换保留 |
+| 个人 | 个性化 Personalization | `personalization` | 屏蔽 | 个性化配置与首启问卷关闭 |
+| 个人 | 宠物 Pets / Mini | `pets` | 保留（preview.2 恢复） | 精简偏好页增加「宠物」，恢复悬浮层、显示/隐藏入口及快捷键 |
+| 个人 | 快捷键 Keyboard shortcuts | `keyboard-shortcuts` | 保留 | 受限功能的快捷键移除，普通操作与宠物快捷键保留 |
+| 个人 | 用量 Usage | `usage` | 屏蔽设置页 | 用量设置入口隐藏 |
+| 个人 | 分析 Analytics | `analytics` | 屏蔽设置页 | 分析设置入口隐藏，不代表对话回收已完成 |
+| 个人 | 消费者视图 Consumer view | `consumer-view` | 屏蔽设置页 | 不向员工开放 |
+| 个人 | 调试 Debug | `debug` | 屏蔽设置页 | 调试入口和命令关闭 |
+| 集成 | 电脑控制 Computer use | `computer-use` | 关闭 | 同时限制能力、消息、插件及专用运行时 |
+| 集成 | Chronicle | `chronicle` | 屏蔽 | 不向员工开放 |
+| 集成 | Appshots | `appshots` | 屏蔽 | 应用截图上下文入口关闭 |
+| 集成 | Codex Micro | `codex-micro` | 屏蔽 | 关闭硬件设置入口和 USB 探测 |
+| 集成 | MCP 服务器 MCP servers | `mcp-settings` | 屏蔽设置页 | 员工不能自建或授权连接；管理员现有配置沿用 |
+| 集成 | 插件 Plugins | `plugins-settings` | 屏蔽设置页 | **主界面插件页保留**；员工安装/卸载与市场管理受控 |
+| 集成 | 技能 Skills | `skills-settings` | 屏蔽设置页 | **Skill 使用和创建能力保留**，通过主界面插件/Skills 入口使用 |
+| 集成 | 浏览器 Browser | `browser-use` | 关闭 | 浏览器控制、扩展及配置同步关闭 |
+| 编码 | Hooks | `hooks-settings` | 屏蔽设置页 | 不开放 Hook 管理 |
+| 编码 | 连接 Connections | `connections` | 屏蔽 | SSH、WSL、远程连接管理关闭 |
+| 编码 | 云偏好 Cloud preferences | `cloud-settings` | 屏蔽设置页 | 本地 Codex 模式保留 |
+| 编码 | 云环境 Cloud environments | `cloud-environments` | 屏蔽设置页 | 不开放云环境配置 |
+| 编码 | 代码审查 Code review | `code-review` | 屏蔽设置页 | 审查面板与 PR 入口收起 |
+| 编码 | Git | `git-settings` | 屏蔽设置页 | Git 管理命令隐藏；不删除项目目录 |
+| 编码 | 环境 Environments | `local-environments` | 屏蔽 | 不开放本地编码环境配置 |
+| 编码 | 工作树 Worktrees | `worktrees` | 屏蔽 | 不开放 Worktree 创建和管理 |
+| 归档 | 归档聊天 Archived chats / Data controls | `data-controls` | 保留 | 收敛为精简偏好页「归档对话」，支持归档和恢复 |
+
+完整设置页替换为「外观与快捷键」，其中提供：**外观、语音、快捷键、归档对话、宠物**。已按试用反馈删除“默认权限：完整访问 · 模型与连接由管理员统一配置”提示文字，实际默认权限和配置策略不变。
+
+主界面插件页与 `plugins-settings` 是两个入口，不能混为一谈。Skills 同理；保留使用和创建不要求开放整套 Skills 设置页。
+
 ## 3. 屏蔽如何落实
 
 | 层次 | 具体改动 | 文件 |
 | --- | --- | --- |
 | 原生菜单与命令注册 | 从命令表删除受限命令；原生菜单引用已删除命令时返回隐藏菜单项，避免启动报错 | [patch-bundle.mjs](../scripts/enterprise/patch-bundle.mjs)、[runtime.cjs](../scripts/enterprise/runtime.cjs) |
 | React 界面 | 在 JSX 创建与国际化标签边界移除受限按钮/菜单/设置字段，保留相邻正常操作 | [policy.cjs](../scripts/enterprise/policy.cjs) |
-| 路由 | 设置只开放四个精简页面；编码后的路径、额外子路由及受限页面不能绕过 | 同上 |
+| 路由 | 设置只开放五个精简页面；编码后的路径、额外子路由及受限页面不能绕过 | 同上 |
 | 员工请求 | 原生消息入口和 renderer RPC 边界拒绝插件管理、账户管理、连接配置及非允许配置写入 | [patch-bundle.mjs](../scripts/enterprise/patch-bundle.mjs) |
 | 原生插件初始化 | 仅允许指定插件从准确匹配的内置市场路径安装，兼容 Windows 长短路径及市场 manifest 路径 | [native-policy.cjs](../scripts/enterprise/native-policy.cjs)、[policy.cjs](../scripts/enterprise/policy.cjs) |
 | 桌面能力与 gate | 静态 bundle 和运行时均应用相同企业策略，旧的用户开关不能重新打开受限功能 | [patch-app-asar.mjs](../scripts/patch-app-asar.mjs)、[init.cjs](../scripts/desktop-patches/init.cjs) |
@@ -77,7 +124,7 @@
 | 主程序与共享模块文件名变化 | 锁定新版主进程、RPC 连接模块与命令表，继续进行精确/语义补丁检查 |
 | 前端拆分为 app-initial 与 app-primary | 分别处理路由/JSX/首启逻辑和模型推广；不依赖旧版打包文件名 |
 | 原生 feature 读写函数变化 | 适配新版读写入口，继续强制关闭企业受限能力 |
-| 设置页导入符号变化 | 适配 useLocation、useNavigate 与 Outlet，保持四个精简页面可用 |
+| 设置页导入符号变化 | 适配 useLocation、useNavigate 与 Outlet；preview.2 在原四个精简页面之外恢复宠物页 |
 | 模型推广组件变化 | 关闭新模型推广与 Fast mode 推广弹窗 |
 | Windows 沙箱状态 atom 变化 | 对完整访问默认值返回“不需设置”，避免出现 Finish Windows setup |
 | 自定义模型名称增加格式选项 | 没有 displayName 时显示实际模型 ID；已有名称仍正常显示 |
@@ -89,7 +136,7 @@
 | MSIX 运行时路径 | 规范化 `%40` 作用域目录及 Statsig 文件名，移除 Computer Use 专用的 cua/sky/browser-desktop 依赖；保留 Node、npm 和普通办公依赖，验证安装目标路径长度 |
 | Owl 拆分 Electron 运行时 | 新版完整性 fuse 位于 `chrome.dll`，主 EXE 仅为启动器；更新打包时的 ASAR fuse 处理并验证结果，未知布局直接构建失败，见 [desktop-runtime-fuses.mjs](../scripts/desktop-runtime-fuses.mjs) |
 | 侧栏原生菜单直接读取子元素 props | 屏蔽操作使用不渲染任何 DOM、也不携带事件的空组件元素，兼容菜单 cloneElement/Slot 接口，避免 null 子元素导致整个首页错误 |
-| 模式/宠物快捷键改名 | 补充 switchToMode1/2、openAvatarOverlay、togglePriorityFilter；屏蔽 Work/Chat 快捷模式及不留历史的 temporaryChat，保留 Codex、普通聊天和语音快捷键 |
+| 模式/宠物快捷键改名 | 补充 switchToMode1/2、togglePriorityFilter 等受限命令别名；屏蔽 Work/Chat 快捷模式及不留历史的 temporaryChat。preview.2 恢复 openAvatarOverlay 宠物快捷键，保留 Codex、普通聊天和语音快捷键 |
 | 权限选择迁移到 permissionProfile | 使用新的 default_permissions 启动覆盖；不与旧 sandbox_mode 同时设置，增加 config/read 有效值及首页 Full access 断言 |
 | 权限界面仍保留旧选择逻辑 | rollout 未开启时旧 composer 忽略 CLI 默认权限；调整其新聊天默认选择为 full-access，并先检查服务器 requirements 是否允许，不修改或绕过管理员权限限制 |
 | 新增浏览器能力 | 关闭 browserExtensions、browserSettingsCloudSync、browserUseTinysky、inAppBrowserUseHistory、cuaPIP 等 |
