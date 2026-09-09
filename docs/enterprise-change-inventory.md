@@ -2,7 +2,7 @@
 
 本文件记录企业精简版已实现的改动、保留能力、对应代码及尚未完成的集成项。需求依据为 2026-09-08 TEENet 周会；最近更新：2026-09-09。
 
-当前构建：`26.901.51231-b2`，修复模型命令循环注册，沿用 Codex 名称与安装位置，Windows CI 已通过。下载和适用边界见第 7 节；b1、preview.2 与 preview.1 为历史记录。尚未通过 ai-env-mgr 发布到员工机队。
+当前构建：`26.901.51231-b3`，按用户要求临时屏蔽宠物以隔离启动故障，沿用 Codex 名称与安装位置，Windows CI 已通过。下载和适用边界见第 7 节；b2 及更早版本为历史记录。尚未通过 ai-env-mgr 发布到员工机队。
 
 ## 1. 版本与构建来源
 
@@ -191,7 +191,13 @@ ai-env-mgr 相关代码位于 `/root/pp_home/windows-pc/ai-env-mgr`。本次任�
 
 ### Codex 26.901.51231-b3：暂时屏蔽宠物（2026-09-09）
 
-用户确认 b2 仍报错，要求先关闭宠物验证。`policy.cjs` 关闭入口、快捷键、gate 与消息；`patchPinnedPetIsolation` 针对固定原生管理器停止恢复和预加载，并使 `ensureWindow` 返回已支持的 null。保留用户原始宠物状态及 Provider、模型、凭据、会话。安装测试断言旧状态为 true 时也没有 avatar renderer 或窗口启动日志；保留模型连续切换验证。构建验收和下载待完成后补充。本节优先于上方历史功能表中“保留宠物”的描述。
+用户确认 b2 仍报错，要求先关闭宠物验证。`policy.cjs` 关闭入口、快捷键、gate 与消息；`patchPinnedPetIsolation` 针对固定原生管理器停止恢复和预加载，并使 `ensureWindow` 返回已支持的 null。保留用户原始宠物状态及 Provider、模型、凭据、会话。本节优先于上方历史功能表中“保留宠物”的描述。
+
+- 构建提交 `b95a90b20ccf8b4c3a75897755e1395cd44c0c34`；[Windows CI 34361590519](https://github.com/TEENet-io/codex-kiosk/actions/runs/34361590519) 全量回归、网关构建、包验证、安装与两套界面验收全部通过。
+- 英文普通启动、中文 bearer 且旧宠物状态为 true 均正常；设置仅四个入口、宠物快捷键移除、宠物路由重定向。DevTools 目标和桌面窗口日志均无 avatar，原始开启状态仍保留。中文模型连续切换通过，两组 `rendererErrors=[]`、`consoleErrors=[]`。
+- [b3 安装器与便携包](https://nightly.link/TEENet-io/codex-kiosk/actions/artifacts/10108578417.zip)，解压运行 `codex-only-local-26.901.51231-b3-setup.exe`。[截图与验证报告](https://nightly.link/TEENet-io/codex-kiosk/actions/artifacts/10108532431.zip)，本地报告 `/tmp/codex-b3-validation.zip`。产物保留 14 天，未创建 Release。
+- 安装器 SHA256：`876c000251d5aaa9053bfd90e5b04f598b1bc33f2378ce20f0b68cbac87d276c`；便携包 SHA256：`b0075df37dcb525e103da253640f3d8a3e75aec8a766f5d6ba3437e9c23322df`；整个 Actions ZIP SHA256：`8f596256cedee344a8947bbee53a910d33ccc9bc5916e70b334f829322f5ff39`。
+- 这是关闭宠物后的隔离测试，不是员工现场故障已修复的结论。原生悬浮窗还承载部分语音/快捷浮窗展示，本包不创建该共享窗口；语音偏好页保留，真实语音通话、模型服务请求未执行。
 
 ### Codex 26.901.51231-b1：恢复原安装名称（2026-09-09）
 

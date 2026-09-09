@@ -1,3 +1,9 @@
+## Codex 26.901.51231-b3（2026-09-09）
+
+- 用户反馈 b2 仍无法启动，按要求临时屏蔽宠物以隔离故障；不宣称宠物已被证实为根因。
+- 统一策略关闭宠物 gate、入口、命令与消息；固定 26.901 原生管理器停止状态恢复和预加载，窗口获取返回调用方已支持的 null，避免隐藏悬浮窗仍启动。
+- 保留模型、凭据、会话和原宠物状态文件；Windows 构建与验收 34361590519 全部通过，包含旧状态为开启时不创建宠物 renderer、中文 DeepSeek → Kimi → DeepSeek 切换、配置与 Skill 保留。员工现场是否恢复仍需安装 b3 验证。
+
 ## Codex 26.901.51231-b2（2026-09-09）
 
 - 员工异常 trace 定位到 React #185（更新层级过深）：命令注册布局 effect 写入 store 后递归更新，随后被合并为无消息的 AggregateError。`pUr` 的 invalid-hook 异常属于 React 重建组件堆栈，不能单独当作根因。
@@ -174,8 +180,3 @@ Windows 预览验收通过：125 项回归、18 项网关测试、安装与六�
 - `pwsh -NoProfile -File ./scripts/build-offline-package.ps1 -SkipInstaller -MetadataOutputPath ./build/tmp/web-refactor-build-metadata.json`
 - `pwsh -NoProfile -File ./scripts/verify-offline-package.ps1 -BuildMetadataPath ./build/tmp/web-refactor-build-metadata.json`
 - Browser smoke on `http://127.0.0.1:3744`
-## Codex 26.901.51231-b3（2026-09-09）
-
-- 用户反馈 b2 仍无法启动，按要求临时屏蔽宠物以隔离故障；不宣称宠物已被证实为根因。
-- 统一策略关闭宠物 gate、入口、命令与消息；固定 26.901 原生管理器停止状态恢复和预加载，窗口获取返回调用方已支持的 null，避免隐藏悬浮窗仍启动。
-- 保留模型、凭据、会话和原宠物状态文件；增加旧状态仍为开启时也不创建宠物 renderer 的安装验收。Windows 构建结果待补充。
