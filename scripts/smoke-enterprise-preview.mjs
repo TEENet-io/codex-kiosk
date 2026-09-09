@@ -123,6 +123,11 @@ if (diagnosticAuth && current) {
   const anchor = 'componentDidCatch(e,{componentStack:t}){';
   assert.equal(renderer.split(anchor).length - 1, 1, 'pinned error boundary diagnostic anchor');
   fs.writeFileSync(rendererPath, renderer.replace(anchor, anchor + 'console.error("Codex diagnostic boundary",e,e?.stack,t);'));
+  if (process.env.CODEX_TEST_MODEL_COMMAND_FIX === '1') {
+    const { patchPinnedModelCommand } = await import('./enterprise/patch-bundle.mjs');
+    const primaryPath = path.join(instrumentation, 'webview/assets/app-primary-428a0a65766f.js');
+    fs.writeFileSync(primaryPath, patchPinnedModelCommand(fs.readFileSync(primaryPath, 'utf8'), '26.901.51231'));
+  }
 }
 await asar.createPackage(instrumentation, archive);
 const server = net.createServer();
@@ -254,7 +259,7 @@ try {
   assert.ok(!homeText.includes('Finish Windows setup'), 'full-access chat does not require environment setup');
   assert.ok(!homeText.includes('Introducing GPT-'), 'model promotion removed');
   result.checks.push('employee home without scheduled navigation, environment setup or model promotion');
-  if (diagnosticAuth && current) {
+  if (current) {
     await evaluate(() => {
       const editor = document.querySelector('[contenteditable="true"][role="textbox"], .ProseMirror[contenteditable="true"]');
       if (!editor) throw new Error('Composer editor not found');

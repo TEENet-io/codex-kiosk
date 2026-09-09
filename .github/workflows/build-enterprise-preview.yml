@@ -52,7 +52,7 @@ jobs:
             exit $buildExit
           }
       - name: Desktop preview smoke and screenshots
-        timeout-minutes: 7
+        timeout-minutes: 12
         shell: pwsh
         run: |
           $config = Get-Content config/enterprise-preview.json -Raw | ConvertFrom-Json
@@ -65,6 +65,8 @@ jobs:
             Write-Output "::error::$detail"
             exit $smokeExit
           }
+          node scripts/smoke-enterprise-preview.mjs $portable C:/te-out/smoke-gateway bearer-only pet-zh 2>&1 | Tee-Object C:/te-out/smoke-gateway.log
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
       - name: Upload small validation report
         if: always()
         uses: actions/upload-artifact@v7
@@ -73,6 +75,8 @@ jobs:
           path: |
             C:/te-out/smoke/
             C:/te-out/smoke.log
+            C:/te-out/smoke-gateway/
+            C:/te-out/smoke-gateway.log
             C:/te-out/SHA256SUMS.txt
             C:/te-out/enterprise-build.json
           if-no-files-found: warn
@@ -91,5 +95,7 @@ jobs:
             C:/te-out/build.log
             C:/te-out/smoke.log
             C:/te-out/smoke/
+            C:/te-out/smoke-gateway/
+            C:/te-out/smoke-gateway.log
           if-no-files-found: warn
           retention-days: 14

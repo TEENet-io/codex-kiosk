@@ -61,6 +61,16 @@ export function patchPinnedStartupControls(source, kind, version = '26.810.52044
   return replaceExact(source, 'nUs=ja(Q,(e,{get:t})=>{if(e==null||e!==`local`)', 'nUs=ja(Q,(e,{get:t})=>{return tUs;/*teenet:full-access-no-setup*/if(e==null||e!==`local`)', 'Windows sandbox setup requirement');
 }
 
+export function patchPinnedModelCommand(source, version) {
+  if (version !== '26.901.51231') throw new Error('Unsupported composer baseline: ' + version);
+  // pUr passes the projected catalog to Pas/Las/Ras as a layout-effect
+  // dependency. A fresh projection on every render causes registration to
+  // notify the active editor, which renders and registers again (React #185).
+  // Reserve three compiler memo slots without changing the existing slots.
+  source = replaceExact(source, 'function pUr(e){let t=(0,gUr.c)(51)', 'function pUr(e){let t=(0,gUr.c)(54)/*codex:stable-model-command*/', 'model command memo capacity');
+  return replaceExact(source, 'P=JIr(M,p?N:null),{serviceTierSettings:F}=cv(n)', 'P;{let e=p?N:null;t[51]!==M||t[52]!==e?(P=JIr(M,e),t[51]=M,t[52]=e,t[53]=P):P=t[53]}let{serviceTierSettings:F}=cv(n)', 'model command catalog dependency');
+}
+
 export function patchSemanticControls(source, sourceType = 'module') {
   const ast = parse(source, { ecmaVersion: 'latest', sourceType, allowReturnOutsideFunction: true });
   const edits = [];
@@ -161,6 +171,7 @@ export function patchExtractedBundle(root) {
       source = replaceExact(source, current ? '{slug:n}=e,r=Wwo[n],i;' : '{slug:n}=e,r=tdl[n],i;', '{slug:n}=e,r=globalThis.TEENetPolicy.routeAllowed("/settings/"+n)?' + (current ? 'Wwo' : 'tdl') + '[n]:()=>null,i;', 'settings child route guard');
     }
     if (current && rel === 'webview/assets/app-primary-428a0a65766f.js') {
+      source = patchPinnedModelCommand(source, pkg.version);
       source = replaceExact(source, 'function Wnn(e){', 'function Wnn(e){return null;/*teenet:no-model-promotion*/', 'model promotion modal');
       source = replaceExact(source, 'function vnn(e){', 'function vnn(e){return null;/*teenet:no-fast-promotion*/', 'fast mode promotion modal');
     }

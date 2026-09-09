@@ -33,6 +33,14 @@ node scripts/smoke-enterprise-preview.mjs dist/enterprise-current/codex-only-loc
 
 ## 历史依据
 
+### 2026-09-09 命令注册更新循环
+
+员工 trace 的首个非预期同步异常为 `ste`（initial bundle 11:27594，React #185），经 `Pzt` 聚合后从 `Pas` 的 store setter（8235:706814）和 `Ras` 的布局 effect（8235:708387）传播。后续 `DetermineComponentFrameRoot` 调用 `pUr` 时产生的 invalid-hook 异常是组件堆栈重建，不是最早的抛错点；Router 的 `Gw` 也会主动抛出并捕获警告异常。
+
+`pUr` 每次渲染通过 `JIr` 创建新的模型投影数组，并把该数组放进命令注册的 effect 依赖。活动输入框订阅命令更新时可形成「渲染 → 注册 → store 通知 → 渲染」循环。此行为位于桌面 React 状态管理，Gateway 响应处理无法稳定 React 对象引用，因此修复位于版本锁定的 `patchPinnedModelCommand`：仅扩展三个组件 memo 槽，按模型数组及访问模式缓存投影，不改命令注册、选择回调或异常处理。
+
+`composer-registration.test.cjs` 执行保存在 fixture 的实际 `pUr`、`Pas`、`Las` 和 `Ras`，以 store 订阅驱动重渲染；原代码在启用/禁用模型命令两种情况下均超过更新上限，修复后只注册一次，并验证目录刷新、选择回调与卸载。包验证器必须检查新增 marker。Windows 检查新增聚焦输入框并输入 `/model`，不发送模型请求。宠物恢复测试 34338501500 的中英文场景均已通过，但尚不能代替用户实际状态的故障验证。
+
 ### 2026-09-09 员工启动诊断
 
 新日志中的实际路径为 `C:\Users\weipeng\Codex`，CLI 0.153.4 握手、配置读取与模型列表读取成功，但 AppRoutes 在 `app-primary-428a0a65766f.js` 的 `pUr` 重复报空消息 Error。移除旧 notify 配置后仍复现，不能以删除旧 Tools 目录或重新登录作为已确认的解决方案。

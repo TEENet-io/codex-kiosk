@@ -47,6 +47,7 @@ if (current) {
   verifyRuntimePaths(root);
   assert.ok(renderer.includes('teenet:default-full-access'), 'legacy composer default follows enterprise full access');
   const primary = read('webview/assets/app-primary-428a0a65766f.js');
+  assert.ok(primary.includes('/*codex:stable-model-command*/'), 'model command catalog dependency is stable');
   const surfaces = renderer + primary;
   for (const name of ['codex-only-startup', 'codex-only-selector', 'codex-only-transition', 'local-tasks-only-composer', 'cloud-task-schema-disabled', 'cloud-task-runtime-blocked', 'cloud-task-list-disabled', 'cloud-task-detail-disabled', 'offline-query-network-mode', 'offline-mutation-network-mode', 'model-id-display-name-fallback', 'archived-threads-cache-fallback']) {
     assert.ok(surfaces.includes('/*codex-offline:' + name + '*/'), 'retained offline contract: ' + name);
