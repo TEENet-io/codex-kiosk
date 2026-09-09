@@ -105,6 +105,10 @@ if (process.env.CODEX_TEST_STARTUP_TRACE === '1') {
   assert.ok(trace.includes('codexStartupTraceProbe'), 'native exception tracer captures caught exceptions and resumes');
 }
 assert.ok(!/Uncaught Exception|JavaScript error occurred in the main process/.test(fs.readFileSync(path.join(bootstrapRoot, 'codex-stderr.log'), 'utf8')), 'production main process exceptions');
+if (employeeConfig) {
+  const productionLogs = fs.readFileSync(path.join(bootstrapRoot, 'codex-stdout.log'), 'utf8') + fs.readFileSync(path.join(bootstrapRoot, 'codex-stderr.log'), 'utf8');
+  assert.ok(!/error boundary|Maximum update depth exceeded/.test(productionLogs), 'employee config production launch has no renderer error boundary');
+}
 if (!installed) {
   const copy = path.join(isolated, 'instrumented-portable');
   fs.cpSync(root, copy, { recursive: true });
@@ -380,7 +384,11 @@ try {
   assert.deepEqual(errors, [], 'renderer exceptions');
   assert.ok(!/Uncaught Exception|JavaScript error occurred in the main process/.test(fs.readFileSync(path.join(output, 'desktop.log'), 'utf8')), 'no main process exceptions');
   const marketplaceLog = fs.readFileSync(path.join(output, 'desktop.log'), 'utf8');
-  assert.ok(marketplaceLog.split('\n').some(line => line.includes('plugin_marketplace_add_succeeded') && /marketplaceName=openai-bundled(?:\s|$)/.test(line)), 'approved native bundled marketplace initialized');
+  const marketplaceAdded = marketplaceLog.split('\n').some(line => line.includes('plugin_marketplace_add_succeeded') && /marketplaceName=openai-bundled(?:\s|$)/.test(line));
+  // An explicit employee marketplace is already registered. With the same
+  // home used for production bootstrap, the next launch reuses its files.
+  const marketplaceReused = employeeConfig && marketplaceLog.includes('bundled_plugins_runtime_marketplace_reused') && marketplaceLog.includes('bundled_plugins_reconcile_completed');
+  assert.ok(marketplaceAdded || marketplaceReused, 'approved native bundled marketplace initialized or existing employee marketplace reconciled');
   assert.ok(!marketplaceLog.split('\n').some(line => line.includes('bundled_plugins_marketplace_add_failed') && /marketplaceName=openai-bundled(?:\s|$)/.test(line)), 'approved native bundled marketplace did not fail');
   assert.ok(!fs.readFileSync(path.join(output, 'desktop.log'), 'utf8').includes('bundled_plugins_marketplace_install_failed'), 'approved bundled plugins installed');
   result.checks.push('no renderer exceptions during preference navigation');
