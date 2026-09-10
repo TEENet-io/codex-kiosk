@@ -1,0 +1,64 @@
+name: publish-verified-b6
+
+on:
+  push:
+    branches: ['release/codex-b6']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  actions: read
+
+concurrency:
+  group: publish-codex-b6
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      GH_TOKEN: ${{ github.token }}
+      GH_REPO: ${{ github.repository }}
+      RELEASE_TAG: offline-v26.901.51231-b6
+      SOURCE_COMMIT: 57473bd2cd5532e2990fa73ac21ea642d8a55575
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+      - name: Require completed Windows installer validation
+        run: |
+          set -euo pipefail
+          test "$(gh api repos/$GH_REPO/actions/runs/34446140386 --jq '.conclusion')" = success
+          test "$(gh api repos/$GH_REPO/actions/runs/34446140386 --jq '.head_sha')" = d6765bd4e0e69879a2202d5aabeeb1068d96e32b
+          git cat-file -e "$SOURCE_COMMIT^{commit}"
+      - uses: actions/download-artifact@v8
+        with:
+          github-token: ${{ github.token }}
+          run-id: 34445177912
+          artifact-ids: 10139604991
+          merge-multiple: true
+          path: release-assets
+      - name: Verify the exact tested installer and portable archive
+        working-directory: release-assets
+        run: |
+          set -euo pipefail
+          test "$(sha256sum codex-only-local-26.901.51231-b6-setup.exe | cut -d ' ' -f 1)" = 29b5820f8fa38fd56a4bc427a08a521d0ed6826251d0a6625cfb9e5286767fcb
+          test "$(sha256sum codex-only-local-26.901.51231-b6-portable.zip | cut -d ' ' -f 1)" = 2c2489ff744e3015347d4afb29ff1ab6aa534f978fa0e2d9e87839ca9e409713
+          sha256sum --check SHA256SUMS.txt
+          test "$(jq -r .version enterprise-build.json)" = 26.901.51231-b6
+      - name: Upload complete draft before publishing
+        run: |
+          set -euo pipefail
+          gh release create "$RELEASE_TAG" \
+            --target "$SOURCE_COMMIT" \
+            --title 'Codex 26.901.51231-b6 (MSIX 26.901.6511.0)' \
+            --notes-file docs/releases/26.901.51231-b6.md \
+            --draft \
+            release-assets/codex-only-local-26.901.51231-b6-setup.exe \
+            release-assets/codex-only-local-26.901.51231-b6-portable.zip \
+            release-assets/SHA256SUMS.txt \
+            release-assets/enterprise-build.json
+          test "$(gh release view "$RELEASE_TAG" --json assets --jq '.assets | length')" = 4
+          gh release edit "$RELEASE_TAG" --draft=false --latest
+          gh release view "$RELEASE_TAG" --json url,isDraft,isPrerelease,assets

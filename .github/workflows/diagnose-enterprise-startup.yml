@@ -1,0 +1,83 @@
+name: diagnose-enterprise-startup
+on:
+  push:
+    branches: ['diagnostic/gateway-startup']
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+jobs:
+  collector:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - run: node --test scripts/test/startup-trace.test.cjs
+      - name: Verify temporary launcher restoration
+        shell: powershell
+        run: ./scripts/test/startup-trace-launcher.ps1
+      - uses: actions/upload-artifact@v7
+        with:
+          name: Codex-startup-diagnostic
+          path: scripts/diagnostics/
+          retention-days: 7
+  startup:
+    runs-on: windows-latest
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        auth: [control, bearer-only, stale-chatgpt]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: node --test scripts/test/pet-pointer.test.cjs
+      - uses: actions/download-artifact@v8
+        with:
+          name: Codex-package
+          run-id: 34445177912
+          github-token: ${{ github.token }}
+          path: C:/te-diagnostic
+      - name: Unpack verified Codex b6 candidate
+        shell: pwsh
+        run: |
+          $zip = Get-ChildItem C:/te-diagnostic -Filter '*-portable.zip' | Select-Object -First 1
+          if (-not $zip) { throw 'Preview portable ZIP not found' }
+          if ((Get-FileHash $zip.FullName).Hash.ToLowerInvariant() -ne '2c2489ff744e3015347d4afb29ff1ab6aa534f978fa0e2d9e87839ca9e409713') { throw 'Portable digest mismatch' }
+          Expand-Archive $zip.FullName C:/te-portable
+      - name: Reproduce employee catalog startup
+        shell: pwsh
+        env:
+          CODEX_TEST_STARTUP_TRACE: '0'
+          CODEX_TEST_MODEL_COMMAND_FIX: '0'
+          CODEX_TEST_EMPLOYEE_CONFIG: '0'
+          CODEX_TEST_RETURN_DIAG: '0'
+          CODEX_TEST_PET_INPUT: '1'
+          CODEX_TEST_PET_FIX: '0'
+          CODEX_TEST_PET_VARIANTS: '0'
+          CODEX_TEST_NATIVE_GPU: '1'
+          CODEX_TEST_CLEAR_LAYERED: '0'
+        run: |
+          $metadata = Get-ChildItem C:/te-portable -Recurse -Filter enterprise-build.json | Select-Object -First 1
+          if (-not $metadata) { throw 'Preview metadata not found' }
+          $installer = Get-ChildItem C:/te-diagnostic -Filter '*-setup.exe' | Select-Object -First 1
+          if (-not $installer) { throw 'Installer not found' }
+          if ((Get-FileHash $installer.FullName).Hash.ToLowerInvariant() -ne '29b5820f8fa38fd56a4bc427a08a521d0ed6826251d0a6625cfb9e5286767fcb') { throw 'Installer digest mismatch' }
+          Copy-Item $installer.FullName ($metadata.DirectoryName + '-setup.exe')
+          if ('${{ matrix.auth }}' -eq 'control') {
+            node scripts/smoke-enterprise-preview.mjs $metadata.DirectoryName C:/te-report
+          } else {
+            node scripts/smoke-enterprise-preview.mjs $metadata.DirectoryName C:/te-report '${{ matrix.auth }}' pet-zh
+          }
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: b6-native-${{ matrix.auth }}
+          path: C:/te-report
+          retention-days: 7

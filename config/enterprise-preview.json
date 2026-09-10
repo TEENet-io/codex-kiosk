@@ -1,0 +1,21 @@
+{
+  "name": "Codex",
+  "version": "26.901.51231-b6",
+  "base": {
+    "tag": "official-msix-26.901.6511.0",
+    "appVersion": "26.901.51231",
+    "msixVersion": "26.901.6511.0",
+    "url": "https://persistent.oaistatic.com/codex-app-prod/ChatGPT-x64.msix",
+    "sha256": "fd9ae9eeeeaf11577191ce5a39d0b8f95fa73d591aa3a94f688b84d294d1fa85"
+  },
+  "configuration": "existing-admin-managed-codex-home",
+  "releaseChannel": "self-maintained",
+  "carrier": {
+    "tag": "offline-v26.810.52044-b1",
+    "appVersion": "26.810.52044",
+    "msixVersion": "26.810.7004.0",
+    "url": "https://github.com/TEENet-io/codex-kiosk/releases/download/offline-v26.810.52044-b1/codex-only-local-26.810.52044-b1-portable.zip",
+    "sha256": "2894d4c38e86aa24450567aeb2c631e9f82bf911b375652490aa5f2a6071c887",
+    "root": "codex-only-local-26.810.52044-b1"
+  }
+}

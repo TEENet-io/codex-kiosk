@@ -146,10 +146,10 @@ import os from 'os';
 import crypto from 'crypto';
 import { assertGateOverrideSync } from './check-gate-override-sync.mjs';
 import { assertJavaScriptSyntax } from './check-js-syntax.mjs';
+import { disableAsarIntegrity } from './desktop-runtime-fuses.mjs';
 
 const require = createRequire(import.meta.url);
 const asar = require('@electron/asar');
-const { flipFuses, FuseVersion, FuseV1Options } = require('@electron/fuses');
 const {
   DESKTOP_ASAR_PATCH_MARKERS,
   DESKTOP_ASAR_KNOWN_GATE_IDS,
@@ -182,6 +182,7 @@ const DESKTOP_BROWSER_USE_CAPABILITY_PATCH_FIELDS =
 const { values: args } = parseArgs({
   options: {
     'app-dir': { type: 'string' },
+    'enterprise': { type: 'boolean', default: false },
   },
   strict: false,
 });
@@ -689,13 +690,14 @@ function patchExternalAgentConfigDirectGateCalls(content, gateIds, patchMarker) 
   return { content: next, count };
 }
 
-function patchDirectStatsigGateCalls(content, gateIds, patchMarker) {
+function patchDirectStatsigGateCalls(content, gateIds, patchMarker, gateValues = {}) {
   let next = content;
   let count = 0;
   const callablePattern = '(?:\\(0,[$\\w]+\\)|[$\\w]+(?:\\.[$\\w]+)*)';
 
   for (const gateId of gateIds) {
     if (!next.includes(gateId)) continue;
+    const enabled = gateValues[gateId] !== false;
     const escapedGateId = escapeRegExp(gateId);
     const negatedTwoArgGateCallRe = new RegExp(
       `!${callablePattern}\\([A-Za-z_$][\\w$]*\\s*,\\s*\\\`${escapedGateId}\\\`\\)`,
@@ -703,7 +705,7 @@ function patchDirectStatsigGateCalls(content, gateIds, patchMarker) {
     );
     next = next.replace(negatedTwoArgGateCallRe, () => {
       count += 1;
-      return `!1${patchMarker}`;
+      return `${enabled ? "!1" : "!0"}${patchMarker}`;
     });
 
     const twoArgGateCallRe = new RegExp(
@@ -712,7 +714,7 @@ function patchDirectStatsigGateCalls(content, gateIds, patchMarker) {
     );
     next = next.replace(twoArgGateCallRe, () => {
       count += 1;
-      return `!0${patchMarker}`;
+      return `${enabled ? "!0" : "!1"}${patchMarker}`;
     });
 
     const negatedGateCallRe = new RegExp(
@@ -721,7 +723,7 @@ function patchDirectStatsigGateCalls(content, gateIds, patchMarker) {
     );
     next = next.replace(negatedGateCallRe, () => {
       count += 1;
-      return `!1${patchMarker}`;
+      return `${enabled ? "!1" : "!0"}${patchMarker}`;
     });
 
     const gateCallRe = new RegExp(
@@ -730,7 +732,7 @@ function patchDirectStatsigGateCalls(content, gateIds, patchMarker) {
     );
     next = next.replace(gateCallRe, () => {
       count += 1;
-      return `!0${patchMarker}`;
+      return `${enabled ? "!0" : "!1"}${patchMarker}`;
     });
   }
 
@@ -1155,6 +1157,13 @@ function patchCodexOnlyLocalTasks(content) {
     CLOUD_TASK_RUNTIME_BLOCKED_PATCH_MARKER,
   );
 
+  // 26.901 keeps a separate parsed target variable and cancellation check.
+  replaceOnce(
+    'try{r?.throwIfAborted();let t=o.data.target;if(t.type===`chatgptWorkCloud`){',
+    'try{r?.throwIfAborted();let t=o.data.target;if(t.type===`chatgptWorkCloud`)return dE(`Cloud tasks are disabled in this Codex-only build.`)' + CLOUD_TASK_RUNTIME_BLOCKED_PATCH_MARKER + ';if(t.type===`chatgptWorkCloud`){',
+    CLOUD_TASK_RUNTIME_BLOCKED_PATCH_MARKER,
+  );
+
   // ── 26.810+ regex fallbacks ────────────────────────────────────────────────
   // 26.810 kept every one of these seams functionally identical but drifted the
   // minified identifiers (and, for the startup mode selector, inlined the helper
@@ -1334,7 +1343,7 @@ function patchModelDisplayNameFallback(content) {
   const functionContent = content.slice(functionStart, functionEnd);
   const formatterMatch = functionContent.match(
     /let\s+[A-Za-z_$][\w$]*=([A-Za-z_$][\w$]*)\([A-Za-z_$][\w$]*\);/,
-  );
+  ) || functionContent.match(/=([A-Za-z_$][\w$]*)\([A-Za-z_$][\w$]*,\{stripGptPrefix:[A-Za-z_$][\w$]*\}\)/);
   const fallbackPattern =
     /else if\(([A-Za-z_$][\w$]*)\)\{let ([A-Za-z_$][\w$]*);[\s\S]{0,500}?id:`composer\.mode\.local\.model\.custom`,defaultMessage:`Custom`,description:`Custom model from config`\}[\s\S]{0,250}?,([A-Za-z_$][\w$]*)=\2\}else \3=\1/;
   if (!formatterMatch || !fallbackPattern.test(functionContent)) {
@@ -2052,11 +2061,6 @@ function isMissingUnpackedFileError(error) {
   return error && error.code === 'ENOENT';
 }
 
-function isMissingElectronFuseSentinelError(error) {
-  return error instanceof Error &&
-    error.message.includes('Could not find sentinel in the provided Electron binary');
-}
-
 async function extractAsarForPatch(archivePath, destinationPath) {
   const skippedUnpackedFiles = [];
   const packageEntries = asar.listPackage(archivePath);
@@ -2178,7 +2182,7 @@ try {
     log('windowsStore patch applied.');
   }
 
-  const chromeBrowserClientHash = patchChromePluginScripts(path.resolve(appDir));
+  const chromeBrowserClientHash = args.enterprise ? null : patchChromePluginScripts(path.resolve(appDir));
 
   // ── Patch 2: implement settings-related IPC handlers ──────────────────
   //
@@ -3033,6 +3037,12 @@ try {
       return { content, alreadyCorrect: true, patched: false };
     }
 
+    // 26.901 moved request options into the client and lowered the page size.
+    const current = 'async function l9t(e,{modelProviders:t,archived:n=!1,sourceKinds:r=ALt}){let i=[],a=async o=>{let s={limit:100,cursor:o,sortKey:e.recentConversationsSortKey,modelProviders:t,sourceKinds:r,archived:n,useStateDbOnly:e.useStateDbOnly},c=await e.sendRequest(`thread/list`,s,{priority:`background`,source:`thread_list`});i.push(...c.data),c.nextCursor&&await a(c.nextCursor)};return await a(null),i}';
+    if (content.includes(current)) {
+      const replacement = 'async function l9t(e,{modelProviders:t,archived:n=!1,sourceKinds:r=ALt}){let i=[],failed=!1,seen=new Set,a=async o=>{let s={limit:100,cursor:o,sortKey:e.recentConversationsSortKey,modelProviders:t,sourceKinds:r,archived:n,useStateDbOnly:n?!0:e.useStateDbOnly},c;try{c=await e.sendRequest(`thread/list`,s,{priority:`background`,source:`thread_list`})}catch(error){if(n){failed=!0;return}throw error}i.push(...c.data);if(c.nextCursor){if(seen.has(c.nextCursor))throw Error(`Repeated archived thread cursor`);seen.add(c.nextCursor);await a(c.nextCursor)}};return await a(null),' + archivedThreadsReturnExpression('n', 'failed', 'i') + '}' + ARCHIVED_THREADS_PARTIAL_LIST_PATCH_MARKER + ARCHIVED_THREADS_CACHE_FALLBACK_PATCH_MARKER;
+      return { content: content.replace(current, replacement), patched: true, alreadyCorrect: false };
+    }
     let next = content.replace(
       ARCHIVED_THREADS_LIST_ALL_DIRECT_RE,
       (
@@ -3382,6 +3392,7 @@ try {
   const settingsRouteAlreadyCorrectFiles = [];
   let settingsHandlerSeen = false;
 
+  if (!args.enterprise) {
   const trustedBrowserClientHashesPatch =
     patchTrustedBrowserClientHashes(mainBundleFiles, chromeBrowserClientHash);
   if (trustedBrowserClientHashesPatch.patchedFiles.length > 0) {
@@ -3398,6 +3409,7 @@ try {
     );
   }
 
+  }
   for (const filePath of mainBundleFiles) {
     let content = fs.readFileSync(filePath, 'utf8');
     const originalContent = content;
@@ -3661,6 +3673,8 @@ try {
   // Computer Use. Browser Use needs the same desktop availability object to
   // include chrome/iab backends so node_repl receives the trusted
   // browser-client hash and request metadata.
+  // Enterprise excludes all browser/Computer Use enablement patches.
+  if (!args.enterprise) {
   const windowsBrowserUseCapabilityPatchedFiles = [];
   let windowsBrowserUseCapabilityPatched = false;
   let windowsBrowserUseCapabilityAlreadyCorrect = false;
@@ -4399,6 +4413,7 @@ try {
     );
   }
 
+  }
   const bundledRuntimeMarketplaceFilterPatch = patchBundledRuntimeMarketplaceFilter(
     mainBundleFiles,
     {
@@ -4613,6 +4628,7 @@ try {
         content = codexOnlyLocalTasksPatch.content;
         changed = true;
       }
+      if (!args.enterprise) {
       const computerUseNodeReplDynamicToolsPatch =
         patchComputerUseNodeReplDynamicTools(content);
       if (computerUseNodeReplDynamicToolsPatch.patched) {
@@ -4633,6 +4649,7 @@ try {
         computerUseNodeReplDynamicToolCallAlreadyCorrect = true;
       }
 
+      }
       const archivedThreadsPartialListPatch =
         patchArchivedThreadsPartialList(content);
       if (archivedThreadsPartialListPatch.patched) {
@@ -4673,6 +4690,7 @@ try {
         ultraReasoningEffortAlreadyCorrect = true;
       }
 
+      if (!args.enterprise) {
       const workspaceDependenciesSettingsPatch =
         patchWorkspaceDependenciesSettingsGate(
           content,
@@ -4696,6 +4714,7 @@ try {
       }
       sidebarActivityViewPatched ||= sidebarActivityPatch.sidebarCorrect;
 
+      }
       const pluginsPageMigration = migrateLegacyPluginsPageSelection(content);
       if (pluginsPageMigration.migratedCount > 0) {
         content = pluginsPageMigration.content;
@@ -4713,6 +4732,7 @@ try {
         content,
         DESKTOP_ASAR_KNOWN_GATE_IDS,
         RENDERER_KNOWN_STATSIG_GATES_PATCH_MARKER,
+        args.enterprise ? require("./enterprise/policy.cjs").applyGatePolicy({}) : {},
       );
       if (rendererKnownStatsigGatePatch.count > 0) {
         content = rendererKnownStatsigGatePatch.content;
@@ -4781,6 +4801,7 @@ try {
     } else {
       log('Webview assets already correct (no patching needed).');
     }
+    if (!args.enterprise) {
     if (computerUseNodeReplDynamicToolPatchedFiles.length > 0) {
       log('Computer Use node_repl.js dynamic tool exposed in ' +
         `${computerUseNodeReplDynamicToolPatchedFiles.join(', ')}.`);
@@ -4801,13 +4822,14 @@ try {
         'Could not locate renderer dynamic tool call handler for Computer Use node_repl.js.',
       );
     }
+    }
     if (archivedThreadsPartialListPatchedFiles.length > 0) {
       log('Archived threads partial list fallback patched in ' +
         `${archivedThreadsPartialListPatchedFiles.join(', ')}.`);
     } else if (archivedThreadsPartialListAlreadyCorrect) {
       log('Archived threads partial list fallback already patched.');
     } else {
-      throw new Error(
+      failRequiredPatch(
         'Could not locate renderer archived thread list pagination to patch.',
       );
     }
@@ -4817,11 +4839,12 @@ try {
     } else if (archivedSettingsOfflineVisibilityAlreadyCorrect) {
       log('Archived settings offline local visibility already patched.');
     } else {
-      throw new Error(
+      failRequiredPatch(
         'Could not locate archived settings panel isError to keep local ' +
         'archived chats visible offline.',
       );
     }
+    if (!args.enterprise) {
     if (workspaceDependenciesSettingsPatchedFiles.length > 0) {
       log('Workspace Dependencies settings gate patched in ' +
         `${workspaceDependenciesSettingsPatchedFiles.join(', ')}.`);
@@ -4844,6 +4867,7 @@ try {
       failRequiredPatch(
         'Could not statically enable the sidebar Activity priority surface.',
       );
+    }
     }
     if (legacyPluginsPagePatchResidualFiles.length > 0) {
       failRequiredPatch(
@@ -4935,27 +4959,8 @@ try {
 
   // Disable asar integrity validation fuse in the Electron binary so it
   // accepts the modified asar without crashing on hash mismatch.
-  const exePath = path.resolve(appDir, MAIN_EXECUTABLE_NAME);
-  if (!fs.existsSync(exePath)) {
-    throw new Error(`Electron main executable was not found: ${exePath}`);
-  }
-  log(`Flipping asar integrity fuse in ${path.basename(exePath)}…`);
-  try {
-    await flipFuses(exePath, {
-      version: FuseVersion.V1,
-      [FuseV1Options.EnableEmbeddedAsarIntegrityValidation]: false,
-    });
-    log('Asar integrity fuse disabled.');
-  } catch (error) {
-    if (!isMissingElectronFuseSentinelError(error)) {
-      throw error;
-    }
-
-    log(
-      `Current ${MAIN_EXECUTABLE_NAME} does not expose the Electron asar integrity fuse; ` +
-      'no fuse flip needed.',
-    );
-  }
+  const runtimeBinary = await disableAsarIntegrity(appDir);
+  log(`Asar integrity fuse disabled and verified in ${path.basename(runtimeBinary)}.`);
 
   log('Done.');
 } finally {
