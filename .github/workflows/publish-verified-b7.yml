@@ -52,6 +52,9 @@ jobs:
       - name: Upload complete draft before publishing
         run: |
           set -euo pipefail
+          if gh release view "$RELEASE_TAG" --json isDraft --jq .isDraft > release-assets/existing-draft.txt; then
+            test "$(cat release-assets/existing-draft.txt)" = true
+          else
           gh release create "$RELEASE_TAG" \
             --verify-tag \
             --title 'Codex 26.901.51231-b7 (MSIX 26.901.6511.0)' \
@@ -61,8 +64,10 @@ jobs:
             release-assets/codex-only-local-26.901.51231-b7-portable.zip \
             release-assets/SHA256SUMS.txt \
             release-assets/enterprise-build.json
+          fi
           test "$(gh release view "$RELEASE_TAG" --json assets --jq '.assets | length')" = 4
-          gh api "repos/$GH_REPO/releases/tags/$RELEASE_TAG" > release-assets/published.json
+          release_id=$(gh release view "$RELEASE_TAG" --json databaseId --jq .databaseId)
+          gh api "repos/$GH_REPO/releases/$release_id" > release-assets/published.json
           jq -e '.assets[] | select(.name == "codex-only-local-26.901.51231-b7-setup.exe") | .digest == "sha256:3be9ed4d6ed85ef2155632b47e78a0a8f5244d21434be13712583de8c9210aec"' release-assets/published.json
           jq -e '.assets[] | select(.name == "codex-only-local-26.901.51231-b7-portable.zip") | .digest == "sha256:2bd461c777591cc64fcf6d45fb391a51b72c712d30d300176c6852d6f7e5c4e4"' release-assets/published.json
           gh release edit "$RELEASE_TAG" --draft=false --latest
