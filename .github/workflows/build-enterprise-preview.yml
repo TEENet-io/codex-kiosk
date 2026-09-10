@@ -17,6 +17,7 @@ jobs:
     runs-on: windows-latest
     env:
       CODEX_TEST_PET_INPUT: '1'
+      CODEX_TEST_NATIVE_GPU: '1'
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
@@ -46,8 +47,17 @@ jobs:
         run: |
           New-Item -ItemType Directory -Force C:/te-out | Out-Null
           New-Item -ItemType Directory -Force build/enterprise-source | Out-Null
-          curl.exe -fL --connect-timeout 15 --max-time 300 https://belongs-indicated-reserves-days.trycloudflare.com/fd9ae9eeeeaf11577191ce5a39d0b8f95fa73d591aa3a94f688b84d294d1fa85.msix -o build/enterprise-source/ChatGPT-26.901.6511.0-x64.msix
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $parts = 0..47 | ForEach-Object -Parallel {
+            $start = [long]$_ * 16777216
+            $end = [Math]::Min($start + 16777215, 796592343)
+            $part = "build/enterprise-source/pinned-part-$_.bin"
+            curl.exe -fsSL --retry 2 --connect-timeout 15 --max-time 600 -r "$start-$end" https://belongs-indicated-reserves-days.trycloudflare.com/fd9ae9eeeeaf11577191ce5a39d0b8f95fa73d591aa3a94f688b84d294d1fa85.msix -o $part
+            if ($LASTEXITCODE -ne 0 -or (Get-Item $part).Length -ne ($end - $start + 1)) { throw "Pinned source segment $_ failed" }
+            @{ Index = $_; Path = $part }
+          } -ThrottleLimit 32
+          if ($parts.Count -ne 48) { throw 'Incomplete pinned source transfer' }
+          $stream = [IO.File]::Create((Join-Path $PWD 'build/enterprise-source/ChatGPT-26.901.6511.0-x64.msix'))
+          try { foreach ($part in ($parts | Sort-Object Index)) { $inputStream = [IO.File]::OpenRead((Join-Path $PWD $part.Path)); try { $inputStream.CopyTo($stream) } finally { $inputStream.Dispose() } } } finally { $stream.Dispose() }
           $PSNativeCommandUseErrorActionPreference = $false
           node scripts/build-enterprise-preview.mjs --installer --output C:/te-out 2>&1 | Tee-Object C:/te-out/build.log
           $buildExit = $LASTEXITCODE
