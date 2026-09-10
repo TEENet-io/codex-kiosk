@@ -37,6 +37,19 @@ jobs:
           run-id: 34370298624
           name: Codex-package
           path: C:/codex-cache
+      - name: Locate verified stage input
+        id: stage
+        shell: pwsh
+        run: |
+          $transfer = Get-Content config/prepared-stage.json -Raw | ConvertFrom-Json
+          "run-id=$($transfer.artifactRunId)" >> $env:GITHUB_OUTPUT
+          "name=$($transfer.artifactName)" >> $env:GITHUB_OUTPUT
+      - uses: actions/download-artifact@v8
+        with:
+          github-token: ${{ github.token }}
+          run-id: ${{ steps.stage.outputs.run-id }}
+          name: ${{ steps.stage.outputs.name }}
+          path: C:/
       - name: Materialize exact source-built stage
         shell: pwsh
         run: |
@@ -46,8 +59,6 @@ jobs:
           tar.exe -xf $base -C C:/codex-base
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $transfer = Get-Content config/prepared-stage.json -Raw | ConvertFrom-Json
-          curl.exe -fsSL --retry 2 --max-time 600 $transfer.url -o C:/codex-stage.zip
-          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           if ((Get-FileHash C:/codex-stage.zip).Hash.ToLowerInvariant() -ne $transfer.sha256) { throw 'Stage transfer digest mismatch' }
           tar.exe -xf C:/codex-stage.zip -C C:/codex-overlay
           node scripts/enterprise/stage-transfer.mjs materialize C:/codex-base/codex-only-local-26.901.51231-b5 C:/codex-overlay C:/codex-verified

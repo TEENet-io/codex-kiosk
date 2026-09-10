@@ -310,15 +310,14 @@ try {
     await capture('01-approval-restored.png');
     result.checks.push('fresh default asks for approval; explicit full access and return to approval both work');
     await clickControl('[data-composer-navigation-target="workspace-project"]');
-    await waitFor(() => [...document.querySelectorAll('[role="menuitem"],button')].some(e => /^(New project|新建项目|创建项目)$/.test(e.textContent.trim())));
-    await evaluate(() => [...document.querySelectorAll('[role="menuitem"],button')].find(e => /^(New project|新建项目|创建项目)$/.test(e.textContent.trim())).click());
-    await waitFor(() => [...document.querySelectorAll('[role="dialog"]')].some(e => /Local|本地/.test(e.textContent)));
+    // With only Local available, pinned hCn opens its form directly (no type menu).
+    await waitFor(() => [...document.querySelectorAll('[role="dialog"]')].some(e => /Create project|创建项目/.test(e.textContent) && /Source folders|源文件夹/.test(e.textContent)));
     const projectDialog = await evaluate(() => document.querySelector('[role="dialog"]')?.innerText || '');
     assert.ok(!/Remote|远程|Cloud|云端/.test(projectDialog), 'project creation only offers local execution');
     await capture('01-local-project.png');
     await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
     await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
-    result.checks.push('project creation shows Local without Remote or Cloud');
+    result.checks.push('project creation opens local source-folder form without Remote or Cloud');
   }
   if (current) {
     await evaluate(() => {

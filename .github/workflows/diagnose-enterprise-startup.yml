@@ -29,8 +29,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        auth: [bearer-only]
-        petfix: ['1']
+        auth: [control, bearer-only, stale-chatgpt]
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -38,17 +37,19 @@ jobs:
           node-version: 24
           cache: npm
       - run: npm ci
+      - run: node --test scripts/test/pet-pointer.test.cjs
       - uses: actions/download-artifact@v8
         with:
           name: Codex-package
-          run-id: 34370298624
+          run-id: 34445177912
           github-token: ${{ github.token }}
           path: C:/te-diagnostic
-      - name: Unpack Codex b5 candidate
+      - name: Unpack verified Codex b6 candidate
         shell: pwsh
         run: |
           $zip = Get-ChildItem C:/te-diagnostic -Filter '*-portable.zip' | Select-Object -First 1
           if (-not $zip) { throw 'Preview portable ZIP not found' }
+          if ((Get-FileHash $zip.FullName).Hash.ToLowerInvariant() -ne '2c2489ff744e3015347d4afb29ff1ab6aa534f978fa0e2d9e87839ca9e409713') { throw 'Portable digest mismatch' }
           Expand-Archive $zip.FullName C:/te-portable
       - name: Reproduce employee catalog startup
         shell: pwsh
@@ -58,7 +59,7 @@ jobs:
           CODEX_TEST_EMPLOYEE_CONFIG: '0'
           CODEX_TEST_RETURN_DIAG: '0'
           CODEX_TEST_PET_INPUT: '1'
-          CODEX_TEST_PET_FIX: '${{ matrix.petfix }}'
+          CODEX_TEST_PET_FIX: '0'
           CODEX_TEST_PET_VARIANTS: '0'
           CODEX_TEST_NATIVE_GPU: '1'
           CODEX_TEST_CLEAR_LAYERED: '0'
@@ -67,11 +68,16 @@ jobs:
           if (-not $metadata) { throw 'Preview metadata not found' }
           $installer = Get-ChildItem C:/te-diagnostic -Filter '*-setup.exe' | Select-Object -First 1
           if (-not $installer) { throw 'Installer not found' }
+          if ((Get-FileHash $installer.FullName).Hash.ToLowerInvariant() -ne '29b5820f8fa38fd56a4bc427a08a521d0ed6826251d0a6625cfb9e5286767fcb') { throw 'Installer digest mismatch' }
           Copy-Item $installer.FullName ($metadata.DirectoryName + '-setup.exe')
-          node scripts/smoke-enterprise-preview.mjs $metadata.DirectoryName C:/te-report '${{ matrix.auth }}' pet-zh
+          if ('${{ matrix.auth }}' -eq 'control') {
+            node scripts/smoke-enterprise-preview.mjs $metadata.DirectoryName C:/te-report
+          } else {
+            node scripts/smoke-enterprise-preview.mjs $metadata.DirectoryName C:/te-report '${{ matrix.auth }}' pet-zh
+          }
       - uses: actions/upload-artifact@v7
         if: always()
         with:
-          name: employee-config-${{ matrix.auth }}-petfix-${{ matrix.petfix }}
+          name: b6-native-${{ matrix.auth }}
           path: C:/te-report
           retention-days: 7

@@ -46,3 +46,11 @@ test('pet native patch is exact and scoped to unsupported Windows input shapes',
   assert.throws(() => patchPinnedPetInput(patched, '26.901.51231'), /baseline drift/);
   assert.throws(() => patchPinnedPetInput(original, 'future'), /Unsupported/);
 });
+
+test('failed native companion keeps the desktop clickable', () => {
+  const win = new EventEmitter(), calls = [];
+  Object.assign(win, { isDestroyed: () => false, isVisible: () => true, getContentBounds: () => ({ x: 0, y: 0 }), setIgnoreMouseEvents: (...args) => calls.push(args) });
+  const manager = { window: win, inputShape: [{ left: 0, top: 0, width: 20, height: 20 }], refreshCursorAtCurrentMousePosition: () => { throw Error('Failed companion must not synthesize pet hover'); } };
+  sync(manager, { getCursorScreenPoint: () => ({ x: 10, y: 10 }) }, () => ({}), () => {}, () => () => false);
+  assert.deepEqual(calls.at(-1), [true, { forward: true }]);
+});

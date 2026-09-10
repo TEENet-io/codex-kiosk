@@ -35,6 +35,14 @@ node scripts/smoke-enterprise-preview.mjs dist/enterprise-current/codex-only-loc
 
 ## 历史依据
 
+### 2026-09-10 宠物鼠标与透明窗口
+
+Windows 原包和仅基于光标区域的修复均复现：宠物可见但收不到系统鼠标，窗口保留 `WS_EX_LAYERED`。停用宠物淡入淡出仍不够；临时仅清除该标志后，点击与拖动立即恢复，与 [上游同版本报告](https://github.com/openai/codex/issues/43200) 一致。诊断同时验证了正常 GPU 渲染和软件渲染，不能把问题归因于测试关闭 GPU。
+
+最终候选在主进程按原生光标与 renderer 控件区域切换穿透；单独 Node 辅助进程修复宠物 HWND 的标志，避免在 Owl 自定义 Electron 进程加载 FFI 引发崩溃。辅助进程固定使用自带 Node 与锁定的 Koffi 2.14.0，校验 HWND 所属 PID，只接受交互布尔状态，窗口关闭或输入管道断开时退出。故障时透明窗口继续穿透。Windows [34444932028](https://github.com/TEENet-io/codex-kiosk/actions/runs/34444932028) 在 b5 的临时安装副本上验证候选逻辑：pointerdown/up/click 到达、拖动后窗口左边界 573→473、后方按钮收到一次点击、renderer/console 异常均为空。这是根因及候选对照，最终交付以新安装器验收为准。
+
+固定 MSIX 官方地址已滚动更新，而保存的原包向 CI 传输过慢。本次先从校验通过的本地 MSIX 完成源构建，再把上一版 b5 仅作为 Windows 文件缓存。`stage-transfer.mjs` 逐个校验全部程序文件及解包后的 ASAR 成员；内容有任何缺失、多余或摘要差异都停止。变化包约 5 MB；Windows 重新打包 ASAR、运行相同 CLI/程序验证器与安装器模板，不接受其他上游版本。
+
 ### 2026-09-09 偏好页返回按钮的原生点击
 
 用户恢复启动后报告左上角“返回对话”无效。该按钮属于自定义 `preferences.js.txt`，位于顶部 Electron 拖动区域。原测试通过宿主路由消息进入偏好，随后用 DOM click 切换设置，没有实际点击返回按钮，遗漏了 Windows 原生命中测试。
