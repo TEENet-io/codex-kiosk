@@ -3,7 +3,9 @@
 // mouse moves do not reliably wake the renderer's pointer handlers. Use the
 // same renderer-supplied regions with native cursor coordinates instead.
 const trackers = new WeakMap();
-function sync(manager, screen, schedule = setInterval, cancel = clearInterval) {
+function sync(manager, screen, schedule = setInterval, cancel = clearInterval, restore = win => {
+  if (process.platform === 'win32') require('./win32-pet-input.cjs').restoreHitTesting(win);
+}) {
   const win = manager.window;
   if (!win || win.isDestroyed()) return;
   let tracker = trackers.get(win);
@@ -26,7 +28,10 @@ function sync(manager, screen, schedule = setInterval, cancel = clearInterval) {
       if (tracker.mode === mode) return;
       tracker.mode = mode;
       win.setIgnoreMouseEvents(!interactive, { forward: visible && !interactive });
-      if (interactive) manager.refreshCursorAtCurrentMousePosition(win);
+      if (interactive) {
+        restore(win);
+        manager.refreshCursorAtCurrentMousePosition(win);
+      }
     };
     trackers.set(win, tracker);
     const timer = schedule(tracker.tick, 32);

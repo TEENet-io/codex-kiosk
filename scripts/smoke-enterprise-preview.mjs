@@ -131,6 +131,9 @@ if (process.env.CODEX_TEST_PET_FIX === '1') {
   const { patchPinnedPetInput } = await import('./enterprise/patch-bundle.mjs');
   diagnosticMain = patchPinnedPetInput(diagnosticMain, '26.901.51231');
   fs.copyFileSync(path.resolve('scripts/enterprise/pet-pointer.cjs'), path.join(instrumentation, 'teenet/pet-pointer.cjs'));
+  fs.copyFileSync(path.resolve('scripts/enterprise/win32-pet-input.cjs'), path.join(instrumentation, 'teenet/win32-pet-input.cjs'));
+  const { preparePetNative } = await import('./enterprise/prepare-pet-native.mjs');
+  preparePetNative(path.join(root, '_internal/app/resources'));
 }
 fs.writeFileSync(mainPath, diagnosticMain);
 if (diagnosticAuth && current) {

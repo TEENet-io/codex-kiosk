@@ -16,6 +16,7 @@
     "@electron/asar": "3.2.18",
     "@electron/fuses": "^2.1.0",
     "acorn": "8.15.0",
+    "koffi": "2.14.0",
     "playwright": "1.58.2",
     "smol-toml": "1.8.0"
   }

@@ -10,6 +10,7 @@ import { createRequire } from 'node:module';
 import { patchExtractedBundle } from './enterprise/patch-bundle.mjs';
 import { verifyCli } from './enterprise/verify-cli.mjs';
 import { prepareRuntime } from './enterprise/prepare-runtime.mjs';
+import { preparePetNative } from './enterprise/prepare-pet-native.mjs';
 const require = createRequire(import.meta.url);
 const asar = require('@electron/asar');
 const policy = require('./enterprise/policy.cjs');
@@ -65,6 +66,7 @@ fs.writeFileSync(path.join(newMarketplace, manifestRelative), JSON.stringify(new
 fs.rmSync(app, { recursive: true });
 fs.renameSync(path.join(official, 'app'), app);
 console.log('Prepared official runtime:', JSON.stringify(prepareRuntime(app)));
+preparePetNative(path.join(app, 'resources'));
 for (const relative of ['_internal/patches', '_internal/app/patches']) {
   fs.mkdirSync(path.join(stage, relative), { recursive: true });
   for (const name of ['init.cjs', 'plugin-service-compat.cjs']) fs.copyFileSync(path.join(repo, 'scripts/desktop-patches', name), path.join(stage, relative, name));
