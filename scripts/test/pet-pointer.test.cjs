@@ -9,7 +9,7 @@ test('Windows pet independently enters and leaves hit regions without renderer h
   const calls = [];
   Object.assign(win, { isDestroyed: () => false, isVisible: () => visible, getContentBounds: () => ({ x: 100, y: 50 }), setIgnoreMouseEvents: (...args) => calls.push(args) });
   const manager = { window: win, pointerInteractive: false, inputShape: [{ left: 300, top: 500, width: 100, height: 120 }], refreshCursorAtCurrentMousePosition: () => refreshes++ };
-  sync(manager, { getCursorScreenPoint: () => cursor }, fn => { tick = fn; return {}; }, () => { cancelled = true; }, () => restored++);
+  sync(manager, { getCursorScreenPoint: () => cursor }, fn => { tick = fn; return {}; }, () => { cancelled = true; }, () => interactive => { if (interactive) restored++; });
   assert.deepEqual(calls.at(-1), [true, { forward: true }]);
   cursor = { x: 450, y: 600 }; tick();
   assert.deepEqual(calls.at(-1), [false, { forward: false }], 'pet receives mouse without a preceding renderer pointer-enter');

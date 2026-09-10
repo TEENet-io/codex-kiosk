@@ -1,24 +1,21 @@
 'use strict';
-// Only called for the owned Windows pet HWND after enabling its hit region.
-// Owl retains WS_EX_LAYERED even when setIgnoreMouseEvents(false) is called;
-// transparent DirectComposition windows then miss native mouse hit testing.
-let api;
-function restoreHitTesting(win) {
-  if (!api) {
-    const path = require('node:path');
-    const koffi = require(path.join(process.resourcesPath, 'codex-pet-native/koffi'));
-    const user32 = koffi.load('user32.dll');
-    api = {
-      get: user32.func('int32_t __stdcall GetWindowLongW(uintptr_t hwnd, int index)'),
-      set: user32.func('int32_t __stdcall SetWindowLongW(uintptr_t hwnd, int index, int32_t value)'),
-      refresh: user32.func('bool __stdcall SetWindowPos(uintptr_t hwnd, uintptr_t after, int x, int y, int width, int height, uint32_t flags)'),
-    };
-  }
+// Keep native FFI outside Owl's custom Electron runtime. The companion accepts
+// only the owned pet HWND and its interactivity, and exits with that window.
+const { spawn } = require('node:child_process');
+const path = require('node:path');
+function connect(win) {
+  const resources = process.resourcesPath;
   const buffer = win.getNativeWindowHandle();
-  const hwnd = buffer.length === 8 ? buffer.readBigUInt64LE() : BigInt(buffer.readUInt32LE());
-  const style = api.get(hwnd, -20);
-  if (!(style & 0x80000)) return;
-  api.set(hwnd, -20, style & ~0x80000);
-  api.refresh(hwnd, 0n, 0, 0, 0, 0, 0x37); // frame changed; no move/resize/z-order/activation
+  const hwnd = (buffer.length === 8 ? buffer.readBigUInt64LE() : BigInt(buffer.readUInt32LE())).toString();
+  const child = spawn(path.join(resources, 'cua_node/bin/node.exe'), [path.join(resources, 'codex-pet-native/bridge.cjs'), String(process.pid), hwnd], { windowsHide: true, stdio: ['pipe', 'pipe', 'pipe'] });
+  let stopped = false;
+  const fail = () => { if (stopped) return; stopped = true; if (!win.isDestroyed()) win.setIgnoreMouseEvents(true, { forward: true }); };
+  child.on('error', fail);
+  child.on('exit', fail);
+  child.stdin.on('error', fail);
+  child.stderr.on('data', data => console.warn('[pet-native-input]', data.toString().trim()));
+  child.stdout.resume();
+  win.once('closed', () => { stopped = true; child.stdin.end(); child.kill(); });
+  return interactive => { if (!stopped) child.stdin.write(JSON.stringify({ interactive }) + '\n'); };
 }
-module.exports = { restoreHitTesting };
+module.exports = { connect };

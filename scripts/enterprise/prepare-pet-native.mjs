@@ -6,6 +6,7 @@ export function preparePetNative(resources) {
   const source = path.dirname(require.resolve('koffi/package.json'));
   const target = path.join(resources, 'codex-pet-native/koffi');
   fs.mkdirSync(path.join(target, 'build/koffi/win32_x64'), { recursive: true });
+  fs.copyFileSync(new URL('./pet-native-bridge.cjs', import.meta.url), path.join(resources, 'codex-pet-native/bridge.cjs'));
   for (const file of ['index.js', 'indirect.js', 'package.json', 'LICENSE.txt', 'build/koffi/win32_x64/koffi.node']) {
     fs.copyFileSync(path.join(source, file), path.join(target, file));
   }
