@@ -1,6 +1,6 @@
 # Codex 精简版构建
 
-当前候选：`26.901.51231-b6`，取消强制完全访问、恢复请求批准与 Windows 沙箱设置，创建项目仅保留本地入口。宠物原生鼠标交互正在 Windows 安装包上定位和验收，尚未交付。保留 b5 返回对话按钮修复及 Codex 名称；不清理用户配置。
+当前交付：`26.901.51231-b6`，取消强制完全访问、恢复请求批准与 Windows 沙箱设置，创建项目仅保留本地入口。宠物点击、拖动及透明区域右下角穿透已通过 Windows 安装后测试。保留 b5 返回对话按钮修复及 Codex 名称；不清理用户配置。[下载与完整验收记录](enterprise-change-inventory.md#7-验证与交付记录)。
 
 依据 2026-09-08 周会，企业版保留对话、项目、归档、语音、外观、快捷键、模型切换、管理员预装插件及 Skill 创建，收起设置、编码环境、自主安装和高级控制入口。
 
@@ -8,7 +8,7 @@
 
 ## 固定构建输入
 
-当前构建 `26.901.51231-b5` 基于官方 Windows x64 MSIX `26.901.6511.0`，SHA-256 为 `fd9ae9eeeeaf11577191ce5a39d0b8f95fa73d591aa3a94f688b84d294d1fa85`。版本、来源与摘要固定在 `config/enterprise-preview.json`。验证结果和员工实际状态的回测边界见[交付记录](enterprise-change-inventory.md#7-验证与交付记录)。官方稳定下载地址会滚动更新；若摘要不符，构建立刻失败，必须提供保存的固定版本 MSIX，不能自动接受新包。
+当前构建 `26.901.51231-b6` 基于官方 Windows x64 MSIX `26.901.6511.0`，SHA-256 为 `fd9ae9eeeeaf11577191ce5a39d0b8f95fa73d591aa3a94f688b84d294d1fa85`。版本、来源与摘要固定在 `config/enterprise-preview.json`。验证结果和员工实际状态的回测边界见[交付记录](enterprise-change-inventory.md#7-验证与交付记录)。官方稳定下载地址会滚动更新；若摘要不符，构建立刻失败，必须提供保存的固定版本 MSIX，不能自动接受新包。
 
 `carrier` 仍使用已发布的 `offline-v26.810.52044-b1`，仅提供启动器、模型目录、Skill 种子和固定办公插件。构建删除载体的整套 `_internal/app`，换入官方新版 app（包括 EXE、CLI、原生模块和前端），再执行独立运行补丁与企业策略。原生组件不会与旧版混装。
 
@@ -42,6 +42,8 @@ Windows 原包和仅基于光标区域的修复均复现：宠物可见但收不
 最终候选在主进程按原生光标与 renderer 控件区域切换穿透；单独 Node 辅助进程修复宠物 HWND 的标志，避免在 Owl 自定义 Electron 进程加载 FFI 引发崩溃。辅助进程固定使用自带 Node 与锁定的 Koffi 2.14.0，校验 HWND 所属 PID，只接受交互布尔状态，窗口关闭或输入管道断开时退出。故障时透明窗口继续穿透。Windows [34444932028](https://github.com/TEENet-io/codex-kiosk/actions/runs/34444932028) 在 b5 的临时安装副本上验证候选逻辑：pointerdown/up/click 到达、拖动后窗口左边界 573→473、后方按钮收到一次点击、renderer/console 异常均为空。这是根因及候选对照，最终交付以新安装器验收为准。
 
 固定 MSIX 官方地址已滚动更新，而保存的原包向 CI 传输过慢。本次先从校验通过的本地 MSIX 完成源构建，再把上一版 b5 仅作为 Windows 文件缓存。`stage-transfer.mjs` 逐个校验全部程序文件及解包后的 ASAR 成员；内容有任何缺失、多余或摘要差异都停止。变化包约 5 MB；Windows 重新打包 ASAR、运行相同 CLI/程序验证器与安装器模板，不接受其他上游版本。
+
+构建 34445177912 已校验 5,143 个程序文件与 8,854 个 ASAR 成员，生成 b6 安装器。变化包保存在该运行的 `Codex-verified-stage-input` artifact（保留 90 天），`config/prepared-stage.json` 固定其运行编号及内层 ZIP SHA256；后续使用 `build-prepared-codex.yml` 从 Actions 取回，仍逐文件校验。首次传输用的临时 HTTP 服务与隧道已关闭。artifact 到期后需从保留的固定 MSIX 重新生成，不能跳过校验或替换为其他版本。
 
 ### 2026-09-09 偏好页返回按钮的原生点击
 

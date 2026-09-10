@@ -2,7 +2,7 @@
 
 本文件记录企业精简版已实现的改动、保留能力、对应代码及尚未完成的集成项。需求依据为 2026-09-08 TEENet 周会；最近更新：2026-09-09。
 
-当前候选：`26.901.51231-b6`，取消强制完全访问、恢复请求批准与 Windows 沙箱设置，创建项目仅保留本地入口。宠物原生鼠标交互正在 Windows 安装包上定位和验收，尚未交付。保留 b5 返回对话按钮修复及 Codex 名称；不清理用户配置。
+当前交付：`26.901.51231-b6`，取消强制完全访问、恢复请求批准与 Windows 沙箱设置，创建项目仅保留本地入口。宠物点击、拖动及透明区域右下角穿透已通过 Windows 安装后测试。保留 b5 返回对话按钮修复及 Codex 名称；不清理用户配置。下载与完整验收见第 7 节。
 
 ## 1. 版本与构建来源
 
@@ -171,6 +171,17 @@
 ai-env-mgr 相关代码位于 `/root/pp_home/windows-pc/ai-env-mgr`。本次任务未修改该仓库，也未发布机队策略。
 
 ## 7. 验证与交付记录
+
+### Codex 26.901.51231-b6：请求批准、本地项目与宠物鼠标（2026-09-10）
+
+- `policy.cjs`、`runtime.cjs`、`patch-bundle.mjs` 取消强制完全访问，恢复原生权限回退与 Windows 沙箱设置；只有本地创建方式时直接打开源文件夹表单，不出现远程或云端项目选择。
+- `pet-pointer.cjs` 使用原生光标坐标匹配 renderer 交互区域，空白区域穿透；`win32-pet-input.cjs`、`pet-native-bridge.cjs` 在独立 Node 辅助进程中修复所属宠物窗口的分层标志。精确版本补丁避免原生淡入淡出重新引入该标志，保留宠物显示、收起和动画。根因、原包对照及进程边界见[宠物鼠标记录](enterprise-preview.md#2026-09-10-宠物鼠标与透明窗口)。
+- [构建 34445177912](https://github.com/TEENet-io/codex-kiosk/actions/runs/34445177912) 的 Windows 140 项回归、18 项网关测试、网关编译、CLI/程序校验及安装器构建通过。首次 UI 检查已确认默认请求批准、切换完全访问再切回正常；随后测试误等不存在的旧项目菜单，而页面已直接显示本地创建表单。复测只修正测试路径，不修改分发程序。
+- [同包验收 34446140386](https://github.com/TEENet-io/codex-kiosk/actions/runs/34446140386) 的中文 bearer 组全部通过：权限往返、本地项目表单、模型切换、两次原生返回与继续输入、宠物启动恢复/显示/收起、原生点击与拖动。宠物 `pointerdown/up/click` 均到达，拖动后窗口左边界 573→473，透明区域左上角及右下角后方按钮均收到一次点击，renderer/console 异常为空。[中文报告](https://nightly.link/TEENet-io/codex-kiosk/actions/artifacts/10139834477.zip)；截图已查看，源文件夹表单无远程入口，宠物正常绘制在桌面右下方。
+- [过期 ChatGPT 凭据组报告](https://nightly.link/TEENet-io/codex-kiosk/actions/artifacts/10139857793.zip) 同样全部通过，保留 `auth.json` 的中文配置未影响权限选择、模型切换、宠物点击/拖动及透明区穿透。英文首次 PowerShell 原生鼠标程序超时，未获得点击结果；[同包同脚本复测](https://nightly.link/TEENet-io/codex-kiosk/actions/artifacts/10139983950.zip) 全部通过，未改动程序或放宽断言。最终三组成功，报告保留 7 天。
+- [下载 b6 安装器与便携包](https://nightly.link/TEENet-io/codex-kiosk/actions/artifacts/10139604991.zip)（约 1.39 GB，2026-09-24 到期），解压后运行 `codex-only-local-26.901.51231-b6-setup.exe`。退出 Codex 后安装到现有程序目录，无须清空 `.codex`。未创建 tag 或正式 Release。
+- 安装器 SHA256：`29b5820f8fa38fd56a4bc427a08a521d0ed6826251d0a6625cfb9e5286767fcb`；便携包 SHA256：`2c2489ff744e3015347d4afb29ff1ab6aa534f978fa0e2d9e87839ca9e409713`。
+- 测试平台为 GitHub 托管 Windows Server 2025、单显示器 1024×768、100% 缩放，启用正常 GPU 路径。原生鼠标用于返回按钮、宠物点击/拖动和背景按钮；权限及项目菜单使用 DevTools 鼠标/DOM 操作。凭据是合成占位值，未向真实模型服务发请求，未覆盖用户 Windows 11 多屏/混合 DPI 或完整旧状态。
 
 ### Codex 26.901.51231-b5：返回按钮与宠物恢复（2026-09-09）
 
