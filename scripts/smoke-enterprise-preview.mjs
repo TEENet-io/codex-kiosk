@@ -148,6 +148,21 @@ if (diagnosticAuth && current) {
     fs.writeFileSync(primaryPath, patchPinnedModelCommand(fs.readFileSync(primaryPath, 'utf8'), '26.901.51231'));
   }
 }
+if (process.env.CODEX_TEST_EXEC_DETAILS === '1') {
+  assert.ok(current, 'exec details probe requires pinned 26.901');
+  const { execDetailsBundle, verifyPinnedExecDetails } = await import('./enterprise/patch-bundle.mjs');
+  const activityPath = path.join(instrumentation, execDetailsBundle);
+  const activity = fs.readFileSync(activityPath, 'utf8');
+  verifyPinnedExecDetails(activity, '26.901.51231');
+  // Mount the installed component inside the app's existing providers. Only
+  // this disposable installed copy gains exports/fixture data, never the ZIP.
+  fs.writeFileSync(activityPath, activity + '\nexport function CodexExecDetailsProbe(){Lx();return Z.jsxs("div",{"data-codex-exec-probe":true,style:{position:"fixed",top:180,left:60,width:700,padding:20,zIndex:99999,background:"white",color:"black"},children:[true,false].map(compact=>Z.jsx("section",{"data-exec-mode":compact?"compact":"commands",children:Z.jsx(rx,{item:{cmd:["echo","CODEX_DETAILS_SMOKE"],cwd:"C:/codex-fixture",output:{aggregatedOutput:"CODEX_DETAILS_OUTPUT_"+compact,exitCode:0}},summary:{type:"unknown",cmd:"echo CODEX_DETAILS_SMOKE",isFinished:true},hideRawCommand:compact,isInProgress:false,showSummaryIcon:true})},String(compact)))})}\n');
+  const settingsPath = path.join(instrumentation, 'webview/assets/settings-page-ed0dbe72a147.js');
+  const settings = fs.readFileSync(settingsPath, 'utf8');
+  const anchor = 'export{TEENetPreferences as SettingsPage};';
+  assert.equal(settings.split(anchor).length - 1, 1);
+  fs.writeFileSync(settingsPath, settings.replace(anchor, 'const ExecProbe=Q.lazy(()=>import("./subagent-activity-chip-group-7235ecadfc3f.js").then(m=>({default:m.CodexExecDetailsProbe})));function PreferencesWithExecProbe(){return $.jsxs($.Fragment,{children:[$.jsx(TEENetPreferences,{}),$.jsx(Q.Suspense,{fallback:null,children:$.jsx(ExecProbe,{})})]})}export{PreferencesWithExecProbe as SettingsPage};'));
+}
 await asar.createPackage(instrumentation, archive);
 if (process.env.CODEX_TEST_PET_INPUT === '1') {
   process.env.CODEX_PET_TRACE_FILE = path.join(output, 'pet-native.jsonl');
@@ -393,6 +408,33 @@ try {
     const text = document.querySelector('[data-teenet-preferences] main')?.innerText || '';
     return /Theme|主题/.test(text) && !/正在加载/.test(text);
   });
+  if (process.env.CODEX_TEST_EXEC_DETAILS === '1') {
+    await waitFor(() => !!document.querySelector('[data-codex-exec-probe] section button,[data-codex-exec-probe] section [role="button"]'));
+    result.commandDetails = { fixture: 'installed rx component mounted inside app providers; no model request', modes: [] };
+    for (const mode of ['compact', 'commands']) {
+      const clickDetails = async () => {
+        const point = await evaluate(mode => {
+          const section = document.querySelector('[data-exec-mode="' + mode + '"]');
+          const button = section.querySelector('button,[role="button"]');
+          if (!button) throw Error('Command disclosure missing: ' + mode);
+          const r = button.getBoundingClientRect();
+          return { x: Math.round((r.x + r.width / 2) * devicePixelRatio), y: Math.round((r.y + r.height / 2) * devicePixelRatio), width: Math.round(innerWidth * devicePixelRatio), height: Math.round(innerHeight * devicePixelRatio) };
+        }, mode);
+        execFileSync('powershell.exe', ['-NoProfile', '-File', path.resolve('scripts/test/click-window-client.ps1'), '-TargetProcessId', String(child.pid), '-ClientX', String(point.x), '-ClientY', String(point.y), '-ClientWidth', String(point.width), '-ClientHeight', String(point.height)], { encoding: 'utf8', timeout: 15000 });
+        await delay(1000);
+        return evaluate(mode => document.querySelector('[data-exec-mode="' + mode + '"]').innerText, mode);
+      };
+      const expanded = await clickDetails();
+      assert.ok(expanded.includes('CODEX_DETAILS_SMOKE'), mode + ' command visible');
+      assert.ok(expanded.includes('CODEX_DETAILS_OUTPUT_' + (mode === 'compact')), mode + ' output visible');
+      await capture('command-details-' + mode + '.png');
+      const collapsed = await clickDetails();
+      assert.ok(!collapsed.includes('CODEX_DETAILS_OUTPUT_'), mode + ' output collapses');
+      result.commandDetails.modes.push({ mode, expanded: true, collapsed: true });
+    }
+    await evaluate(() => { document.querySelector('[data-codex-exec-probe]').style.display = 'none'; });
+    result.checks.push('native mouse expands and collapses installed command component in compact and command modes');
+  }
   const clickBack = async (expectReturn = false) => {
       const point = await evaluate(() => {
         const button = [...document.querySelectorAll('[data-teenet-preferences] header button')].find(button => button.textContent === '返回对话');

@@ -92,6 +92,41 @@ export function patchPinnedCommandRegistration(source, version) {
   return replaceExact(source, 'e(e=>e.filter(e=>!t.has(e.id)))', 'e(e=>{let n=e.filter(e=>!t.has(e.id));return n.length===e.length?e:n})/*codex:stable-command-cleanup*/', 'command cleanup no-op');
 }
 
+export const execDetailsBundle = 'webview/assets/subagent-activity-chip-group-7235ecadfc3f.js';
+const execDetailsMarker = '/*codex:expand-command-details*/';
+const execDetailsEdits = [
+  ['E=!p&&v===`expanded`', 'E=v===`expanded`' + execDetailsMarker],
+  ['B=p?void 0:{expanded:E,onToggle:M}', 'B={expanded:E,onToggle:M}'],
+];
+
+function execDetailsFunction(source, version) {
+  if (version !== '26.901.51231') throw new Error('Unsupported command details baseline: ' + version);
+  let ast;
+  try { ast = parse(source, { ecmaVersion: 'latest', sourceType: 'module' }); }
+  catch (cause) { throw new Error('Enterprise baseline drift: exec details syntax', { cause }); }
+  const matches = ast.body.filter(node => node.type === 'FunctionDeclaration' && node.id.name === 'rx');
+  if (matches.length !== 1) throw new Error('Enterprise baseline drift: exec details component');
+  const node = matches[0], text = source.slice(node.start, node.end);
+  if (!text.includes('hideRawCommand:p,toolActivityTurnKey:m}=e')) throw new Error('Enterprise baseline drift: exec details props');
+  return { node, text };
+}
+
+export function patchPinnedExecDetails(source, version) {
+  const { node, text } = execDetailsFunction(source, version);
+  let patched = text;
+  // Keep Work's compact summary and all permission decisions. Only disclosure
+  // and expanded-body visibility should be independent of hideRawCommand.
+  for (const [before, after] of execDetailsEdits) patched = replaceExact(patched, before, after, 'exec details');
+  return source.slice(0, node.start) + patched + source.slice(node.end);
+}
+
+export function verifyPinnedExecDetails(source, version) {
+  const { text } = execDetailsFunction(source, version);
+  for (const [before, after] of execDetailsEdits) {
+    if (text.includes(before) || text.split(after).length !== 2) throw new Error('Invalid exec details patch');
+  }
+}
+
 export function patchSemanticControls(source, sourceType = 'module') {
   const ast = parse(source, { ecmaVersion: 'latest', sourceType, allowReturnOutsideFunction: true });
   const edits = [];
@@ -133,7 +168,7 @@ export function patchExtractedBundle(root) {
   const mainFile = current ? '.vite/build/main-DpnWwRdP.js' : '.vite/build/main-C8eoOzMw.js';
   const rendererFile = current ? 'webview/assets/app-initial-f87238153a19.js' : 'webview/assets/app-initial-TxV8Ik1J.js';
   const settingsFile = current ? 'webview/assets/settings-page-ed0dbe72a147.js' : 'webview/assets/settings-page-B4j1j14I.js';
-  const files = [mainFile, current ? '.vite/build/src-VqXTPopo.js' : '.vite/build/src-DhHWkTcG.js', rendererFile, ...(current ? ['webview/assets/app-primary-428a0a65766f.js'] : [])];
+  const files = [mainFile, current ? '.vite/build/src-VqXTPopo.js' : '.vite/build/src-DhHWkTcG.js', rendererFile, ...(current ? ['webview/assets/app-primary-428a0a65766f.js', execDetailsBundle] : [])];
   // Discover shared command registries by structure, not guessed minified names.
   for (const dir of ['.vite/build', 'webview/assets']) {
     for (const name of fs.readdirSync(path.join(root, dir))) {
@@ -197,6 +232,10 @@ export function patchExtractedBundle(root) {
       source = patchPinnedModelCommand(source, pkg.version);
       source = replaceExact(source, 'function Wnn(e){', 'function Wnn(e){return null;/*teenet:no-model-promotion*/', 'model promotion modal');
       source = replaceExact(source, 'function vnn(e){', 'function vnn(e){return null;/*teenet:no-fast-promotion*/', 'fast mode promotion modal');
+    }
+    if (current && rel === execDetailsBundle) {
+      source = patchPinnedExecDetails(source, pkg.version);
+      verifyPinnedExecDetails(source, pkg.version);
     }
     parse(source, { ecmaVersion: 'latest', sourceType: rel.startsWith('webview/') ? 'module' : 'script', allowReturnOutsideFunction: true });
     fs.writeFileSync(file, marker + '\n' + source);

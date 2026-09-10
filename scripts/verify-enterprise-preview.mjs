@@ -7,6 +7,7 @@ import { createRequire } from 'node:module';
 import { parse } from 'acorn';
 import { verifyRuntimePaths } from './enterprise/prepare-runtime.mjs';
 import { verifyAsarIntegrityDisabled } from './desktop-runtime-fuses.mjs';
+import { execDetailsBundle, verifyPinnedExecDetails } from './enterprise/patch-bundle.mjs';
 const require = createRequire(import.meta.url);
 const asar = require('@electron/asar');
 const policy = require('./enterprise/policy.cjs');
@@ -44,6 +45,7 @@ assert.ok(renderer.includes('globalThis.TEENetPolicy.onboardingTarget(e)'));
 assert.ok((current ? read('webview/assets/app-primary-428a0a65766f.js') : renderer).includes('teenet:no-model-promotion'));
 assert.ok(!renderer.includes('teenet:full-access-no-setup'), 'Windows sandbox setup is preserved');
 if (current) {
+  verifyPinnedExecDetails(read(execDetailsBundle), metadata.base.appVersion);
   for (const marker of ['stable-command-registration', 'stable-command-cleanup']) assert.ok(renderer.includes('/*codex:' + marker + '*/'), marker);
   for (const marker of ['no-pet-restore', 'no-pet-prewarm', 'no-pet-window']) assert.ok(!main.includes('/*codex:' + marker + '*/'), 'removed pet isolation: ' + marker);
   assert.equal(policy.applyFeaturePolicy({ avatarOverlay: true }).avatarOverlay, true);

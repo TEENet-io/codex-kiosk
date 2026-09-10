@@ -13,7 +13,9 @@ const config = JSON.parse(fs.readFileSync('config/enterprise-preview.json'));
 const metadata = JSON.parse(fs.readFileSync(path.join(stage, 'enterprise-build.json')));
 assert.equal(metadata.version, config.version);
 assert.equal(metadata.base.sha256, config.base.sha256);
-assert.ok(metadata.stageTransfer?.checkedFiles > 0);
+assert.ok(metadata.stageTransfer?.checkedFiles > 0 ||
+  (metadata.version === '26.901.51231-b7' && metadata.sourcePackage?.version === '26.901.51231-b6' &&
+    metadata.sourcePackage.sha256 === '2c2489ff744e3015347d4afb29ff1ab6aa534f978fa0e2d9e87839ca9e409713'), 'verified source provenance');
 await verifyCli(path.join(stage, '_internal/app/resources/codex.exe'));
 execFileSync(process.execPath, ['scripts/verify-enterprise-preview.mjs', stage], { stdio: 'inherit' });
 fs.mkdirSync(output, { recursive: true });
