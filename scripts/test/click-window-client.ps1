@@ -24,6 +24,9 @@ public static class CodexNativeClick {
     [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr hwnd);
     [DllImport("user32.dll")] public static extern bool GetClientRect(IntPtr hwnd, out RECT rect);
     [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hwnd, out RECT rect);
+    [DllImport("user32.dll")] public static extern IntPtr WindowFromPoint(POINT point);
+    [DllImport("user32.dll")] public static extern int GetWindowLong(IntPtr hwnd, int index);
+    [DllImport("user32.dll")] public static extern bool IsWindowEnabled(IntPtr hwnd);
     [DllImport("user32.dll")] public static extern bool SetProcessDPIAware();
     [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hwnd);
     [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
@@ -84,6 +87,8 @@ if ($ProbeBackground) {
 }
 if (-not [CodexNativeClick]::SetCursorPos($point.X, $point.Y)) { throw 'SetCursorPos failed.' }
 Start-Sleep -Milliseconds 700
+$hitHandle = [CodexNativeClick]::WindowFromPoint($point)
+$extendedStyle = [CodexNativeClick]::GetWindowLong($handle, -20)
 [CodexNativeClick]::mouse_event(0x0002, 0, 0, 0, [UIntPtr]::Zero)
 Start-Sleep -Milliseconds 80
 if ($DragX -ne 0 -or $DragY -ne 0) {
@@ -101,4 +106,4 @@ if ($ProbeBackground) {
     [System.Windows.Forms.Application]::DoEvents()
     $form.Close()
 }
-@{ processId=$TargetProcessId; screenX=$point.X; screenY=$point.Y; handle=$handle.ToInt64(); defaultMainHandle=$target.MainWindowHandle.ToInt64(); candidates=@($candidates.ToArray()); before=$before; after=$after; backgroundClicks=$script:backgroundClicks } | ConvertTo-Json -Compress -Depth 4
+@{ processId=$TargetProcessId; screenX=$point.X; screenY=$point.Y; handle=$handle.ToInt64(); hitHandle=$hitHandle.ToInt64(); extendedStyle=$extendedStyle; enabled=[CodexNativeClick]::IsWindowEnabled($handle); visible=[CodexNativeClick]::IsWindowVisible($handle); defaultMainHandle=$target.MainWindowHandle.ToInt64(); candidates=@($candidates.ToArray()); before=$before; after=$after; backgroundClicks=$script:backgroundClicks } | ConvertTo-Json -Compress -Depth 4

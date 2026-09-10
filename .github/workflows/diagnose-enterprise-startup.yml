@@ -58,6 +58,7 @@ jobs:
           CODEX_TEST_RETURN_DIAG: '0'
           CODEX_TEST_PET_INPUT: '1'
           CODEX_TEST_PET_FIX: '1'
+          CODEX_TEST_PET_VARIANTS: '1'
         run: |
           $metadata = Get-ChildItem C:/te-portable -Recurse -Filter enterprise-build.json | Select-Object -First 1
           if (-not $metadata) { throw 'Preview metadata not found' }

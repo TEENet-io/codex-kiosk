@@ -15,3 +15,19 @@ for (const name of ['setInputShape', 'setIgnoreMouseEvents']) {
 app.on('browser-window-created', (_, win) => {
   win.webContents.on('did-finish-load', () => write({ event: 'window', id: win.id, url: win.webContents.getURL(), bounds: win.getBounds(), inputShapeSupported: BrowserWindow.isInputShapeSupported() }));
 });
+if (process.env.CODEX_TEST_PET_VARIANTS === '1') {
+  let last;
+  setInterval(() => {
+    const file = out + '.control';
+    if (!fs.existsSync(file)) return;
+    const next = fs.readFileSync(file, 'utf8');
+    if (next === last) return;
+    last = next;
+    const command = JSON.parse(next);
+    for (const win of BrowserWindow.getAllWindows()) {
+      if (!win.webContents.getURL().includes('avatar')) continue;
+      if (command.focusable != null) win.setFocusable(command.focusable);
+      write({ event: 'variant', command, id: win.id });
+    }
+  }, 100).unref();
+}

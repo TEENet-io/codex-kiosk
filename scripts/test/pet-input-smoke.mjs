@@ -30,6 +30,7 @@ export async function probePetInput(target, pid, output) {
   };
   const snapshot = () => evaluate(() => ({ width: innerWidth, height: innerHeight, text: document.body.innerText,
     events: window.__petInputEvents,
+    hit: (() => { const r = document.querySelector('[data-avatar-overlay-hit-region="mascot"]')?.getBoundingClientRect(); return r ? document.elementsFromPoint(r.x+r.width/2,r.y+r.height/2).map(e => ({ html:e.outerHTML.slice(0,500), appRegion:getComputedStyle(e).webkitAppRegion, pointerEvents:getComputedStyle(e).pointerEvents })) : []; })(),
     regions: [...document.querySelectorAll('[data-avatar-overlay-hit-region]')].map(e => ({ name: e.dataset.avatarOverlayHitRegion, rect: e.getBoundingClientRect().toJSON(), style: { pointerEvents: getComputedStyle(e).pointerEvents, visibility: getComputedStyle(e).visibility } })),
     buttons: [...document.querySelectorAll('button')].map(e => ({ text: e.textContent, label: e.getAttribute('aria-label'), rect: e.getBoundingClientRect().toJSON() })) }));
   try {
@@ -47,6 +48,19 @@ export async function probePetInput(target, pid, output) {
     report.drag = native(dragRegion.x + dragRegion.width / 2, dragRegion.y + dragRegion.height / 2, ['-DragX', '-100', '-DragY', '-80']);
     await delay(1000);
     report.afterDrag = await snapshot();
+    if (process.env.CODEX_TEST_PET_VARIANTS === '1') {
+      await evaluate(() => { const s = document.createElement('style'); s.textContent = '* { -webkit-app-region: no-drag !important; }'; s.id = 'pet-input-diagnostic-style'; document.head.append(s); });
+      await delay(500);
+      report.noDragClick = native(mascot.x + mascot.width / 2, mascot.y + mascot.height / 2);
+      report.afterNoDrag = await snapshot();
+      await evaluate(() => document.getElementById('pet-input-diagnostic-style').remove());
+      fs.writeFileSync(process.env.CODEX_PET_TRACE_FILE + '.control', JSON.stringify({ focusable: true }));
+      await delay(700);
+      report.focusableClick = native(mascot.x + mascot.width / 2, mascot.y + mascot.height / 2);
+      report.afterFocusable = await snapshot();
+      report.focusableDrag = native(mascot.x + mascot.width / 2, mascot.y + mascot.height / 2, ['-DragX', '-100', '-DragY', '-80']);
+      report.afterFocusableDrag = await snapshot();
+    }
     report.background = native(10, 10, ['-ProbeBackground']);
     const screenshot = await send('Page.captureScreenshot');
     fs.writeFileSync(path.join(output, '08-pet-input.png'), Buffer.from(screenshot.data, 'base64'));
