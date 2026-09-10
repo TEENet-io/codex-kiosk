@@ -50,6 +50,7 @@ if (current) {
   verifyRuntimePaths(root);
   assert.ok(!renderer.includes('teenet:default-full-access'), 'workspace permission selection remains upstream');
   assert.ok(main.includes('codex:pet-native-hit-regions'), 'Windows pet native mouse fallback is installed');
+  assert.ok(main.includes('codex:pet-no-layered-fade'), 'Windows pet does not enter layered opacity state');
   const primary = read('webview/assets/app-primary-428a0a65766f.js');
   assert.ok(primary.includes('/*codex:stable-model-command*/'), 'model command catalog dependency is stable');
   const surfaces = renderer + primary;
