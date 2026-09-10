@@ -141,6 +141,10 @@ if (diagnosticAuth && current) {
   }
 }
 await asar.createPackage(instrumentation, archive);
+if (process.env.CODEX_TEST_PET_INPUT === '1') {
+  process.env.CODEX_PET_TRACE_FILE = path.join(output, 'pet-native.jsonl');
+  fs.appendFileSync(path.join(root, '_internal/app/patches/init.cjs'), '\nrequire(' + JSON.stringify(path.resolve('scripts/diagnostics/pet-input-trace.cjs')) + ');\n');
+}
 const server = net.createServer();
 await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
 const port = server.address().port;
@@ -451,6 +455,10 @@ try {
   }
   assert.ok(petTarget, 'pet overlay window opened from preferences');
   result.petPageUrl = petTarget.url;
+  if (process.env.CODEX_TEST_PET_INPUT === '1') {
+    const { probePetInput } = await import('./test/pet-input-smoke.mjs');
+    result.petInput = await probePetInput(petTarget, child.pid, output);
+  }
   await evaluate(() => [...document.querySelectorAll('button')].find(button => /^(Tuck Away Pet|Hide Mini|收起宠物|隐藏宠物|隐藏 Mini)$/.test(button.textContent.trim())).click());
   await waitFor(() => [...document.querySelectorAll('button')].some(button => /^(Wake Pet|Show Mini|唤醒(?:虚拟)?宠物|显示宠物|显示 Mini)$/.test(button.textContent.trim())));
   result.checks.push('pet preferences, keyboard shortcut and overlay show/hide restored');

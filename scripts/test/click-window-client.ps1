@@ -3,7 +3,11 @@ param(
     [Parameter(Mandatory=$true)][int]$ClientX,
     [Parameter(Mandatory=$true)][int]$ClientY,
     [Parameter(Mandatory=$true)][int]$ClientWidth,
-    [Parameter(Mandatory=$true)][int]$ClientHeight
+    [Parameter(Mandatory=$true)][int]$ClientHeight,
+    [switch]$NoActivate,
+    [int]$DragX = 0,
+    [int]$DragY = 0,
+    [switch]$ProbeBackground
 )
 $ErrorActionPreference = 'Stop'
 # Exercise Windows hit testing (including Electron draggable regions), which
@@ -19,6 +23,7 @@ public static class CodexNativeClick {
     [DllImport("user32.dll")] public static extern uint GetWindowThreadProcessId(IntPtr hwnd, out uint processId);
     [DllImport("user32.dll")] public static extern bool IsWindowVisible(IntPtr hwnd);
     [DllImport("user32.dll")] public static extern bool GetClientRect(IntPtr hwnd, out RECT rect);
+    [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hwnd, out RECT rect);
     [DllImport("user32.dll")] public static extern bool SetProcessDPIAware();
     [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hwnd);
     [DllImport("user32.dll")] public static extern IntPtr GetForegroundWindow();
@@ -48,15 +53,52 @@ $callback = [CodexNativeClick+EnumWindowsProc] {
 $matching = @($candidates | Where-Object { $_.width -eq $ClientWidth -and $_.height -eq $ClientHeight })
 if ($matching.Count -ne 1) { throw ("Expected one window matching viewport {0}x{1}, found: {2}" -f $ClientWidth, $ClientHeight, ($candidates | ConvertTo-Json -Compress)) }
 $handle = [IntPtr]$matching[0].handle
-[CodexNativeClick]::SetForegroundWindow($handle) | Out-Null
-Start-Sleep -Milliseconds 200
-if ([CodexNativeClick]::GetForegroundWindow() -ne $handle) { throw 'Target application did not receive foreground focus.' }
+if (-not $NoActivate -and -not $ProbeBackground) {
+    [CodexNativeClick]::SetForegroundWindow($handle) | Out-Null
+    Start-Sleep -Milliseconds 200
+    if ([CodexNativeClick]::GetForegroundWindow() -ne $handle) { throw 'Target application did not receive foreground focus.' }
+}
+$before = New-Object CodexNativeClick+RECT
+[CodexNativeClick]::GetWindowRect($handle, [ref]$before) | Out-Null
 $point = New-Object CodexNativeClick+POINT
 $point.X = $ClientX
 $point.Y = $ClientY
 if (-not [CodexNativeClick]::ClientToScreen($handle, [ref]$point)) { throw 'ClientToScreen failed.' }
+if ($ProbeBackground) {
+    Add-Type -AssemblyName System.Windows.Forms
+    $form = New-Object System.Windows.Forms.Form
+    $form.FormBorderStyle = 'None'
+    $form.StartPosition = 'Manual'
+    $form.Left = $before.Left
+    $form.Top = $before.Top
+    $form.Width = $ClientWidth
+    $form.Height = $ClientHeight
+    $button = New-Object System.Windows.Forms.Button
+    $button.Dock = 'Fill'
+    $button.Text = 'Desktop click-through probe'
+    $script:backgroundClicks = 0
+    $button.add_Click({ $script:backgroundClicks++ })
+    $form.Controls.Add($button)
+    $form.Show()
+    [System.Windows.Forms.Application]::DoEvents()
+}
 if (-not [CodexNativeClick]::SetCursorPos($point.X, $point.Y)) { throw 'SetCursorPos failed.' }
+Start-Sleep -Milliseconds 700
 [CodexNativeClick]::mouse_event(0x0002, 0, 0, 0, [UIntPtr]::Zero)
 Start-Sleep -Milliseconds 80
+if ($DragX -ne 0 -or $DragY -ne 0) {
+    for ($step = 1; $step -le 20; $step++) {
+        [CodexNativeClick]::SetCursorPos($point.X + [int]($DragX * $step / 20), $point.Y + [int]($DragY * $step / 20)) | Out-Null
+        Start-Sleep -Milliseconds 30
+    }
+    Start-Sleep -Milliseconds 500
+}
 [CodexNativeClick]::mouse_event(0x0004, 0, 0, 0, [UIntPtr]::Zero)
-@{ processId=$TargetProcessId; screenX=$point.X; screenY=$point.Y; handle=$handle.ToInt64(); defaultMainHandle=$target.MainWindowHandle.ToInt64(); candidates=@($candidates.ToArray()) } | ConvertTo-Json -Compress -Depth 4
+Start-Sleep -Milliseconds 700
+$after = New-Object CodexNativeClick+RECT
+[CodexNativeClick]::GetWindowRect($handle, [ref]$after) | Out-Null
+if ($ProbeBackground) {
+    [System.Windows.Forms.Application]::DoEvents()
+    $form.Close()
+}
+@{ processId=$TargetProcessId; screenX=$point.X; screenY=$point.Y; handle=$handle.ToInt64(); defaultMainHandle=$target.MainWindowHandle.ToInt64(); candidates=@($candidates.ToArray()); before=$before; after=$after; backgroundClicks=$script:backgroundClicks } | ConvertTo-Json -Compress -Depth 4
