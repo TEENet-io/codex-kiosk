@@ -27,7 +27,10 @@ function sync(manager, screen, schedule = setInterval, cancel = clearInterval, n
       if (tracker.mode === mode) return;
       tracker.mode = mode;
       win.setIgnoreMouseEvents(!interactive, { forward: visible && !interactive });
-      tracker.native(interactive);
+      if (tracker.native(interactive) === false) {
+        win.setIgnoreMouseEvents(true, { forward: visible });
+        return;
+      }
       if (interactive) {
         manager.refreshCursorAtCurrentMousePosition(win);
       }

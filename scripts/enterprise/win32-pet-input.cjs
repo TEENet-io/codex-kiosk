@@ -16,6 +16,10 @@ function connect(win) {
   child.stderr.on('data', data => console.warn('[pet-native-input]', data.toString().trim()));
   child.stdout.resume();
   win.once('closed', () => { stopped = true; child.stdin.end(); child.kill(); });
-  return interactive => { if (!stopped) child.stdin.write(JSON.stringify({ interactive }) + '\n'); };
+  return interactive => {
+    if (stopped) return false;
+    child.stdin.write(JSON.stringify({ interactive }) + '\n');
+    return true;
+  };
 }
 module.exports = { connect };
