@@ -27,10 +27,11 @@ test('Windows pet independently enters and leaves hit regions without renderer h
 
 test('pet native patch is exact and scoped to unsupported Windows input shapes', async () => {
   const { patchPinnedPetInput } = await import('../enterprise/patch-bundle.mjs');
-  const original = 'class Pet{applyPointerInteractivityPolicy(){let e=this.window;return e}}';
+  const original = 'class Pet{applyPointerInteractivityPolicy(){let e=this.window;return e}prepare(){e!=null&&!e.isDestroyed()&&e.setOpacity(lm)}restorePresentationAccessories(){}fadePresentation(e,t,n,r){this.cancelPresentationFade(e,!1);}cancel(){t&&e!=null&&!e.isDestroyed()&&e.setOpacity(1)}shouldPresentWindow(){}}';
   const patched = patchPinnedPetInput(original, '26.901.51231');
   assert.match(patched, /process.platform===`win32`&&!this.supportsInputShape/);
   assert.match(patched, /pet-pointer.cjs/);
+  assert.match(patched, /codex:pet-no-layered-fade/);
   assert.throws(() => patchPinnedPetInput(patched, '26.901.51231'), /baseline drift/);
   assert.throws(() => patchPinnedPetInput(original, 'future'), /Unsupported/);
 });

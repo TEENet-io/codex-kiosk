@@ -58,9 +58,18 @@ export function patchPinnedStartupControls(source, kind, version = '26.810.52044
 
 export function patchPinnedPetInput(source, version) {
   if (version !== '26.901.51231') throw new Error('Unsupported pet input baseline: ' + version);
-  return replaceExact(source, 'applyPointerInteractivityPolicy(){let e=this.window;',
+  source = replaceExact(source, 'applyPointerInteractivityPolicy(){let e=this.window;',
     'applyPointerInteractivityPolicy(){if(process.platform===`win32`&&!this.supportsInputShape){require("../../teenet/pet-pointer.cjs").sync(this,l.screen);return}/*codex:pet-native-hit-regions*/let e=this.window;',
     'Windows pet pointer fallback');
+  // Electron SetOpacity permanently retains WS_EX_LAYERED. With this
+  // transparent DComp pet window, that breaks native mouse hit testing even
+  // after setIgnoreMouseEvents(false). Never enter that state on Windows.
+  source = replaceExact(source, 'e!=null&&!e.isDestroyed()&&e.setOpacity(lm)}restorePresentationAccessories()',
+    'process.platform!==`win32`&&e!=null&&!e.isDestroyed()&&e.setOpacity(lm)}restorePresentationAccessories()', 'Windows pet initial opacity');
+  source = replaceExact(source, 'fadePresentation(e,t,n,r){this.cancelPresentationFade(e,!1);',
+    'fadePresentation(e,t,n,r){this.cancelPresentationFade(e,!1);if(process.platform===`win32`){r?.();return}/*codex:pet-no-layered-fade*/', 'Windows pet fade');
+  return replaceExact(source, 't&&e!=null&&!e.isDestroyed()&&e.setOpacity(1)}shouldPresentWindow()',
+    'process.platform!==`win32`&&t&&e!=null&&!e.isDestroyed()&&e.setOpacity(1)}shouldPresentWindow()', 'Windows pet opacity reset');
 }
 
 export function patchPinnedModelCommand(source, version) {
