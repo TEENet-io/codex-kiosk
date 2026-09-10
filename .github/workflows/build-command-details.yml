@@ -2,6 +2,10 @@ name: build-command-details
 on:
   push:
     branches: ['build/command-details']
+    paths-ignore:
+      - 'docs/**'
+      - 'CHANGELOG.md'
+      - '.github/workflows/publish-verified-b7.yml'
   workflow_dispatch:
 permissions:
   contents: read
