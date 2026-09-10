@@ -33,6 +33,7 @@ jobs:
           test "$(gh api repos/$GH_REPO/actions/runs/34457431038 --jq '.conclusion')" = success
           test "$(gh api repos/$GH_REPO/actions/runs/34457431038 --jq '.head_sha')" = "$SOURCE_COMMIT"
           git cat-file -e "$SOURCE_COMMIT^{commit}"
+          test "$(git rev-list -n 1 "$RELEASE_TAG")" = "$SOURCE_COMMIT"
       - uses: actions/download-artifact@v8
         with:
           github-token: ${{ github.token }}
@@ -52,7 +53,7 @@ jobs:
         run: |
           set -euo pipefail
           gh release create "$RELEASE_TAG" \
-            --target "$SOURCE_COMMIT" \
+            --verify-tag \
             --title 'Codex 26.901.51231-b7 (MSIX 26.901.6511.0)' \
             --notes-file docs/releases/26.901.51231-b7.md \
             --draft \
