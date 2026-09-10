@@ -7,7 +7,8 @@ param(
     [switch]$NoActivate,
     [int]$DragX = 0,
     [int]$DragY = 0,
-    [switch]$ProbeBackground
+    [switch]$ProbeBackground,
+    [string]$ScreenshotPath
 )
 $ErrorActionPreference = 'Stop'
 # Exercise Windows hit testing (including Electron draggable regions), which
@@ -105,5 +106,16 @@ $after = New-Object CodexNativeClick+RECT
 if ($ProbeBackground) {
     [System.Windows.Forms.Application]::DoEvents()
     $form.Close()
+}
+if ($ScreenshotPath) {
+    Add-Type -AssemblyName System.Windows.Forms
+    Add-Type -AssemblyName System.Drawing
+    $screen = [System.Windows.Forms.SystemInformation]::VirtualScreen
+    $bitmap = New-Object System.Drawing.Bitmap($screen.Width, $screen.Height)
+    $graphics = [System.Drawing.Graphics]::FromImage($bitmap)
+    $graphics.CopyFromScreen($screen.Left, $screen.Top, 0, 0, $bitmap.Size)
+    $bitmap.Save($ScreenshotPath)
+    $graphics.Dispose()
+    $bitmap.Dispose()
 }
 @{ processId=$TargetProcessId; screenX=$point.X; screenY=$point.Y; handle=$handle.ToInt64(); hitHandle=$hitHandle.ToInt64(); extendedStyle=$extendedStyle; enabled=[CodexNativeClick]::IsWindowEnabled($handle); visible=[CodexNativeClick]::IsWindowVisible($handle); defaultMainHandle=$target.MainWindowHandle.ToInt64(); candidates=@($candidates.ToArray()); before=$before; after=$after; backgroundClicks=$script:backgroundClicks } | ConvertTo-Json -Compress -Depth 4

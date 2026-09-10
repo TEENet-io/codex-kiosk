@@ -41,7 +41,7 @@ export async function probePetInput(target, pid, output) {
     const native = (x, y, extra = []) => JSON.parse(execFileSync('powershell.exe', ['-NoProfile', '-File', path.resolve('scripts/test/click-window-client.ps1'), '-TargetProcessId', String(pid), '-ClientX', String(Math.round(x)), '-ClientY', String(Math.round(y)), '-ClientWidth', String(report.before.width), '-ClientHeight', String(report.before.height), '-NoActivate', ...extra], { encoding: 'utf8', timeout: 20000 }));
     const mascot = report.before.regions.find(r => r.name === 'mascot')?.rect;
     if (!mascot) throw Error('Pet mascot hit region absent');
-    report.click = native(mascot.x + mascot.width / 2, mascot.y + mascot.height / 2);
+    report.click = native(mascot.x + mascot.width / 2, mascot.y + mascot.height / 2, ['-ScreenshotPath', path.join(output, '09-pet-desktop.png')]);
     await delay(1000);
     report.afterClick = await snapshot();
     const dragRegion = report.afterClick.regions.find(r => r.name === 'mascot')?.rect || mascot;
