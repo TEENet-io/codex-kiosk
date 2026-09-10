@@ -3,12 +3,12 @@ const { app, BrowserWindow } = require('electron');
 const fs = require('node:fs');
 const out = process.env.CODEX_PET_TRACE_FILE;
 const write = value => fs.appendFileSync(out, JSON.stringify({ time: Date.now(), ...value }) + '\n');
-for (const name of ['setInputShape', 'setIgnoreMouseEvents']) {
+for (const name of ['setInputShape', 'setIgnoreMouseEvents', 'setOpacity']) {
   const original = BrowserWindow.prototype[name];
   if (!original) continue;
   BrowserWindow.prototype[name] = function (...args) {
     const result = original.apply(this, args);
-    write({ event: name, id: this.id, args, result });
+    write({ event: name, id: this.id, args, result, ...(name === 'setOpacity' ? { stack: new Error().stack } : {}) });
     return result;
   };
 }

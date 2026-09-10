@@ -8,6 +8,7 @@ param(
     [int]$DragX = 0,
     [int]$DragY = 0,
     [switch]$ProbeBackground,
+    [switch]$ClearLayered,
     [string]$ScreenshotPath
 )
 $ErrorActionPreference = 'Stop'
@@ -27,6 +28,8 @@ public static class CodexNativeClick {
     [DllImport("user32.dll")] public static extern bool GetWindowRect(IntPtr hwnd, out RECT rect);
     [DllImport("user32.dll")] public static extern IntPtr WindowFromPoint(POINT point);
     [DllImport("user32.dll")] public static extern int GetWindowLong(IntPtr hwnd, int index);
+    [DllImport("user32.dll")] public static extern int SetWindowLong(IntPtr hwnd, int index, int value);
+    [DllImport("user32.dll")] public static extern bool SetWindowPos(IntPtr hwnd, IntPtr after, int x, int y, int width, int height, uint flags);
     [DllImport("user32.dll")] public static extern bool IsWindowEnabled(IntPtr hwnd);
     [DllImport("user32.dll")] public static extern bool SetProcessDPIAware();
     [DllImport("user32.dll")] public static extern bool SetForegroundWindow(IntPtr hwnd);
@@ -88,6 +91,12 @@ if ($ProbeBackground) {
 }
 if (-not [CodexNativeClick]::SetCursorPos($point.X, $point.Y)) { throw 'SetCursorPos failed.' }
 Start-Sleep -Milliseconds 700
+if ($ClearLayered -and -not $ProbeBackground) {
+    $style = [CodexNativeClick]::GetWindowLong($handle, -20)
+    [CodexNativeClick]::SetWindowLong($handle, -20, ($style -band (-bnot 0x80000))) | Out-Null
+    [CodexNativeClick]::SetWindowPos($handle, [IntPtr]::Zero, 0, 0, 0, 0, 0x37) | Out-Null
+    Start-Sleep -Milliseconds 100
+}
 $hitHandle = [CodexNativeClick]::WindowFromPoint($point)
 $extendedStyle = [CodexNativeClick]::GetWindowLong($handle, -20)
 [CodexNativeClick]::mouse_event(0x0002, 0, 0, 0, [UIntPtr]::Zero)

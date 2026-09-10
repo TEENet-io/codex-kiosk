@@ -30,7 +30,7 @@ jobs:
       fail-fast: false
       matrix:
         auth: [bearer-only]
-        petfix: ['0', '1']
+        petfix: ['1']
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-node@v7
@@ -61,6 +61,7 @@ jobs:
           CODEX_TEST_PET_FIX: '${{ matrix.petfix }}'
           CODEX_TEST_PET_VARIANTS: '0'
           CODEX_TEST_NATIVE_GPU: '1'
+          CODEX_TEST_CLEAR_LAYERED: '1'
         run: |
           $metadata = Get-ChildItem C:/te-portable -Recurse -Filter enterprise-build.json | Select-Object -First 1
           if (-not $metadata) { throw 'Preview metadata not found' }
