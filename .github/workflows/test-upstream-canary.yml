@@ -1,0 +1,29 @@
+name: test-upstream-canary
+
+on:
+  push:
+    paths:
+      - '.github/workflows/check-upstream-codex.yml'
+      - '.github/workflows/test-upstream-canary.yml'
+      - 'scripts/test/upstream-canary.test.cjs'
+      - 'scripts/test/source-resilience.test.cjs'
+  pull_request:
+    paths:
+      - '.github/workflows/check-upstream-codex.yml'
+      - '.github/workflows/test-upstream-canary.yml'
+      - 'scripts/test/upstream-canary.test.cjs'
+      - 'scripts/test/source-resilience.test.cjs'
+
+permissions:
+  contents: read
+
+jobs:
+  regression:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+      - name: Execute canary reporting with fixture GitHub responses
+        run: node --test scripts/test/upstream-canary.test.cjs scripts/test/source-resilience.test.cjs

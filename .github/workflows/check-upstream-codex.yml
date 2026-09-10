@@ -114,7 +114,7 @@ jobs:
             exit 1
           fi
           release_pattern="\\(MSIX ${version_train//./\\.}\\.[0-9.]+\\)"
-          released="$(gh release list --repo "$GITHUB_REPOSITORY" --limit 1000 --json name --jq ".[] | select(.name | test(\"$release_pattern\")) | .name" | head -n 1)"
+          released="$(gh release list --repo "$GITHUB_REPOSITORY" --limit 1000 --json name | jq -r --arg pattern "$release_pattern" 'first(.[] | select(.name | test($pattern)) | .name) // empty')"
 
           outage_title='[Codex source canary] resolver unavailable'
           outage_number="$(gh issue list --repo "$GITHUB_REPOSITORY" --state open --limit 100 --json number,title --jq ".[] | select(.title == \"$outage_title\") | .number" | head -n 1)"
