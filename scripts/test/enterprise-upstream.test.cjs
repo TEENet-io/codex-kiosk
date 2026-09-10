@@ -28,23 +28,27 @@ test('26.901 command aliases cannot reopen Work, activity or uncollected tempora
   for (const id of ['openAvatarOverlay', 'switchToMode3', 'newTask', 'keyboardShortcuts', 'globalDictationHold']) assert.equal(policy.commandAllowed(id), true, id);
 });
 
-test('Owl CLI uses the permission-profile default without conflicting legacy sandbox overrides', () => {
+test('app-server preserves upstream or configured permission defaults without forcing full access', () => {
   const policy = require('../enterprise/policy.cjs');
   const args = policy.appServerArgs(['app-server'], {}, { permissionProfiles: true });
-  assert.ok(args.includes('default_permissions=":danger-full-access"'));
-  assert.ok(args.includes('approval_policy="never"'));
-  assert.ok(!args.some(value => value.startsWith('sandbox_mode=')));
+  assert.ok(!args.some(value => /^(default_permissions|approval_policy|sandbox_mode)=/.test(value)));
+  const configured = ['-c', 'approval_policy="on-request"', '-c', 'default_permissions=":workspace"', 'app-server'];
+  const actual = policy.appServerArgs(configured);
+  assert.equal(actual.filter(value => value === 'approval_policy="on-request"').length, 1);
+  assert.ok(!actual.includes('approval_policy="never"'));
+  assert.ok(!actual.includes('default_permissions=":danger-full-access"'));
 });
 
-test('26.901 legacy composer defaults to full access only when server requirements allow it', async () => {
+test('26.901 approval mode retains the upstream workspace fallback and sandbox setup', async () => {
   const { patchPinnedStartupControls } = await import('../enterprise/patch-bundle.mjs');
   const fixture = 'function zno({isProjectless:e,requirements:t}){return e&&Ubt(`granular`,t)?`granular`:`auto`};dIi=Xy(Q,(e,{get:t})=>{if(e==null||e!==`local`)return null})';
   const patched = patchPinnedStartupControls(fixture, 'renderer', '26.901.51231');
   const select = Function('Ubt', patched.slice(0, patched.indexOf(';dIi=')) + ';return zno')((mode, requirements) => requirements[mode] === true);
-  assert.equal(select({ isProjectless: true, requirements: { 'full-access': true, granular: true } }), 'full-access');
-  assert.equal(select({ isProjectless: false, requirements: { 'full-access': true } }), 'full-access');
+  assert.equal(select({ isProjectless: true, requirements: { 'full-access': true, granular: true } }), 'granular');
+  assert.equal(select({ isProjectless: false, requirements: { 'full-access': true } }), 'auto');
   assert.equal(select({ isProjectless: true, requirements: { 'full-access': false, granular: true } }), 'granular');
   assert.equal(select({ isProjectless: false, requirements: { 'full-access': false } }), 'auto');
+  assert.equal(patched, fixture, 'permission selection and Windows setup remain upstream code');
 });
 function walk(node) {
   if (!node || typeof node !== 'object') return;

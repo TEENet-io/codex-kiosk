@@ -15,6 +15,8 @@ concurrency:
 jobs:
   preview:
     runs-on: windows-latest
+    env:
+      CODEX_TEST_PET_INPUT: '1'
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7

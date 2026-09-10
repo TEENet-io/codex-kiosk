@@ -42,13 +42,14 @@ const renderer = read(current ? 'webview/assets/app-initial-f87238153a19.js' : '
 assert.ok(renderer.includes('globalThis.TEENetPolicy.createJsxGuard(r)'));
 assert.ok(renderer.includes('globalThis.TEENetPolicy.onboardingTarget(e)'));
 assert.ok((current ? read('webview/assets/app-primary-428a0a65766f.js') : renderer).includes('teenet:no-model-promotion'));
-assert.ok(renderer.includes('teenet:full-access-no-setup'));
+assert.ok(!renderer.includes('teenet:full-access-no-setup'), 'Windows sandbox setup is preserved');
 if (current) {
   for (const marker of ['stable-command-registration', 'stable-command-cleanup']) assert.ok(renderer.includes('/*codex:' + marker + '*/'), marker);
   for (const marker of ['no-pet-restore', 'no-pet-prewarm', 'no-pet-window']) assert.ok(!main.includes('/*codex:' + marker + '*/'), 'removed pet isolation: ' + marker);
   assert.equal(policy.applyFeaturePolicy({ avatarOverlay: true }).avatarOverlay, true);
   verifyRuntimePaths(root);
-  assert.ok(renderer.includes('teenet:default-full-access'), 'legacy composer default follows enterprise full access');
+  assert.ok(!renderer.includes('teenet:default-full-access'), 'workspace permission selection remains upstream');
+  assert.ok(main.includes('codex:pet-native-hit-regions'), 'Windows pet native mouse fallback is installed');
   const primary = read('webview/assets/app-primary-428a0a65766f.js');
   assert.ok(primary.includes('/*codex:stable-model-command*/'), 'model command catalog dependency is stable');
   const surfaces = renderer + primary;

@@ -43,7 +43,8 @@ export async function probePetInput(target, pid, output) {
     report.click = native(mascot.x + mascot.width / 2, mascot.y + mascot.height / 2);
     await delay(1000);
     report.afterClick = await snapshot();
-    report.drag = native(mascot.x + mascot.width / 2, mascot.y + mascot.height / 2, ['-DragX', '-100', '-DragY', '-80']);
+    const dragRegion = report.afterClick.regions.find(r => r.name === 'mascot')?.rect || mascot;
+    report.drag = native(dragRegion.x + dragRegion.width / 2, dragRegion.y + dragRegion.height / 2, ['-DragX', '-100', '-DragY', '-80']);
     await delay(1000);
     report.afterDrag = await snapshot();
     report.background = native(10, 10, ['-ProbeBackground']);

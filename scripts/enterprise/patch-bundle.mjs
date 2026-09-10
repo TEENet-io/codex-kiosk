@@ -50,15 +50,17 @@ export function patchPinnedStartupControls(source, kind, version = '26.810.52044
     return replaceExact(source, 'async getState(){let e=await this.getService();e.start();', 'async getState(){return this.deviceState;/*teenet:no-micro-hardware*/let e=await this.getService();e.start();', 'optional USB controller discovery');
   }
   if (version === '26.901.51231') {
-    // The legacy composer remains active while permission-selection rollout
-    // is off. It otherwise ignores the CLI profile default for new chats.
-    source = replaceExact(source, 'function zno({isProjectless:e,requirements:t}){return e&&Ubt(`granular`,t)?`granular`:`auto`}', 'function zno({isProjectless:e,requirements:t}){return Ubt(`full-access`,t)?`full-access`:e&&Ubt(`granular`,t)?`granular`:`auto`/*teenet:default-full-access*/}', 'legacy composer full-access default');
-    return replaceExact(source, 'dIi=Xy(Q,(e,{get:t})=>{if(e==null||e!==`local`)', 'dIi=Xy(Q,(e,{get:t})=>{return uIi;/*teenet:full-access-no-setup*/if(e==null||e!==`local`)', 'Windows sandbox setup requirement');
+    return source;
   }
   source = replaceExact(source, 'function cNc(e){let t=(0,lNc.c)(26)', 'function cNc(e){return null;/*teenet:no-model-promotion*/let t=(0,lNc.c)(26)', 'model promotion modal');
-  // The enterprise app-server always uses the requested full-access default;
-  // it does not need the workspace-write Windows sandbox installation wizard.
-  return replaceExact(source, 'nUs=ja(Q,(e,{get:t})=>{if(e==null||e!==`local`)', 'nUs=ja(Q,(e,{get:t})=>{return tUs;/*teenet:full-access-no-setup*/if(e==null||e!==`local`)', 'Windows sandbox setup requirement');
+  return source;
+}
+
+export function patchPinnedPetInput(source, version) {
+  if (version !== '26.901.51231') throw new Error('Unsupported pet input baseline: ' + version);
+  return replaceExact(source, 'applyPointerInteractivityPolicy(){let e=this.window;',
+    'applyPointerInteractivityPolicy(){if(process.platform===`win32`&&!this.supportsInputShape){require("../../teenet/pet-pointer.cjs").sync(this,l.screen);return}/*codex:pet-native-hit-regions*/let e=this.window;',
+    'Windows pet pointer fallback');
 }
 
 export function patchPinnedModelCommand(source, version) {
@@ -146,6 +148,7 @@ export function patchExtractedBundle(root) {
       `, 'native RPC boundary ' + rel);
     }
     if (rel === mainFile) {
+      if (current) source = patchPinnedPetInput(source, pkg.version);
       source = patchPinnedStartupControls(source, 'native');
       source = 'const _teenetPolicy=require("../../teenet/policy.cjs");\n' + source;
       source = replaceExact(source, current ? 'A=(e,t)=>{let r=n.Ht({commandId:e});' : 'k=(e,t)=>{let r=n.Ut({commandId:e});', current ? 'A=(e,t)=>{const hidden=_teenetPolicy.blockedMenuItem(e);if(hidden)return hidden;let r=n.Ht({commandId:e});' : 'k=(e,t)=>{const hidden=_teenetPolicy.blockedMenuItem(e);if(hidden)return hidden;let r=n.Ut({commandId:e});', 'native menu references to removed commands');
@@ -206,6 +209,6 @@ export function patchExtractedBundle(root) {
   fs.mkdirSync(path.join(root, 'teenet'), { recursive: true });
   const tomlPackage = path.resolve(here, '../../node_modules/smol-toml');
   fs.cpSync(tomlPackage, path.join(root, 'teenet/toml'), { recursive: true });
-  for (const name of ['policy.cjs', 'runtime.cjs', 'native-policy.cjs']) fs.copyFileSync(path.join(here, name), path.join(root, 'teenet', name));
+  for (const name of ['policy.cjs', 'runtime.cjs', 'native-policy.cjs', 'pet-pointer.cjs']) fs.copyFileSync(path.join(here, name), path.join(root, 'teenet', name));
   return reports;
 }

@@ -2,6 +2,22 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const policy = require('../enterprise/policy.cjs');
 
+test('project creation retains the local callback and omits remote and cloud choices', () => {
+  const jsx = policy.createJsxGuard((type, props) => ({ type, props }));
+  const local = () => 'local';
+  const props = { localProjectsEnabled: true, showRemoteProjectItem: true, showRemoteProjectCoachmark: true, onCreateLocalProject: local, onSelectRemote() {}, onCreateChatGptProject() {} };
+  const result = jsx('ProjectChooser', props).props;
+  assert.equal(result.onCreateLocalProject(), 'local');
+  assert.equal(result.localProjectsEnabled, true);
+  assert.equal(result.showRemoteProjectItem, false);
+  assert.equal(result.showRemoteProjectCoachmark, false);
+  assert.equal(result.onSelectRemote, undefined);
+  assert.equal(result.onCreateChatGptProject, undefined);
+  assert.equal(props.showRemoteProjectItem, true, 'caller props are not mutated');
+  const unrelated = { showRemoteProjectItem: true };
+  assert.equal(jsx('Other', unrelated).props, unrelated);
+});
+
 test('native startup can retire only removed bundled plugins without allowing employee uninstalls', () => {
   for (const name of policy.removedPlugins) {
     const request = { method: 'plugin/uninstall', params: { pluginId: name + '@openai-bundled' } };
@@ -94,7 +110,7 @@ test('app-server constraints preserve existing provider and model arguments', ()
   assert.ok(!result.some(value => value.startsWith('mcp_servers.node_repl')));
   const existing = policy.appServerArgs(original, { mcp_servers: { node_repl: { url: 'http://localhost/mcp' } } });
   assert.ok(existing.includes('mcp_servers.node_repl.enabled=false'));
-  assert.ok(result.includes('sandbox_mode="danger-full-access"'));
+  assert.ok(!result.some(value => /^(sandbox_mode|default_permissions|approval_policy)=/.test(value)));
   assert.equal(result.at(-1), 'app-server');
   assert.deepEqual(policy.appServerArgs(['--version']), ['--version']);
 });
@@ -120,8 +136,10 @@ test('employee home omits scheduled navigation and optional first-run integratio
   assert.equal(policy.hiddenMessageId('sidebarElectron.inboxRouteNavLink'), true);
   const { patchPinnedStartupControls } = await import('../enterprise/patch-bundle.mjs');
   const renderer = 'function cNc(e){let t=(0,lNc.c)(26);return t}let tUs={isRequired:false,requirement:null};const ja=(q,fn)=>fn,Q={};let nUs=ja(Q,(e,{get:t})=>{if(e==null||e!==`local`)return tUs;throw Error("sandbox setup")});';
-  const result = Function(patchPinnedStartupControls(renderer, 'renderer') + ';return [cNc({}),nUs("local",{})]')();
-  assert.deepEqual(result, [null, { isRequired: false, requirement: null }]);
+  const result = Function(patchPinnedStartupControls(renderer, 'renderer') + ';return [cNc({}),nUs]')();
+  assert.equal(result[0], null);
+  assert.throws(() => result[1]("local", {}), /sandbox setup/, 'local sandbox setup remains required');
+  assert.deepEqual(result[1](null, {}), { isRequired: false, requirement: null });
   const native = 'class Device{deviceState={status:"not-detected"};async getState(){let e=await this.getService();e.start();return e.getState()}}';
   const device = Function(patchPinnedStartupControls(native, 'native') + ';return new Device')();
   assert.deepEqual(await device.getState(), { status: 'not-detected' });

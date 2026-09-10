@@ -127,6 +127,11 @@ if (diagnosticAuth && current) {
   assert.equal(diagnosticMain.split(localeAnchor).length - 1, 1, 'pinned locale diagnostic anchor');
   diagnosticMain = diagnosticMain.replace(localeAnchor, '"locale-info":async()=>({ideLocale:' + JSON.stringify(diagnosticLocale) + ',systemLocale:' + JSON.stringify(diagnosticLocale) + '})');
 }
+if (process.env.CODEX_TEST_PET_FIX === '1') {
+  const { patchPinnedPetInput } = await import('./enterprise/patch-bundle.mjs');
+  diagnosticMain = patchPinnedPetInput(diagnosticMain, '26.901.51231');
+  fs.copyFileSync(path.resolve('scripts/enterprise/pet-pointer.cjs'), path.join(instrumentation, 'teenet/pet-pointer.cjs'));
+}
 fs.writeFileSync(mainPath, diagnosticMain);
 if (diagnosticAuth && current) {
   const rendererPath = path.join(instrumentation, 'webview/assets/app-initial-f87238153a19.js');
@@ -244,7 +249,7 @@ try {
   // document.readyState only covers the HTML shell. Owl may still be loading
   // the renderer and initializing its app-server on a cold Windows runner.
   await waitFor(() => /New chat|新建对话|新聊天|新对话|hit a snag|Something went wrong/.test(document.body?.innerText || ''), 60);
-  await waitFor(() => /Full access|完整访问|完全访问|hit a snag|Something went wrong/.test(document.body?.innerText || ''), 30);
+  await waitFor(() => /Ask for approval|请求批准|Full access|完整访问|完全访问|hit a snag|Something went wrong/.test(document.body?.innerText || ''), 30);
   if (diagnosticAuth) await delay(15000);
   const capture = async name => {
     // Headless Windows runners can expose an interactive DOM without a
@@ -270,11 +275,37 @@ try {
     if (diagnosticScenario.startsWith('project-')) assert.ok(/projectCount=1/.test(fs.readFileSync(path.join(output, 'desktop.log'), 'utf8')), 'existing workspace migrated into app-server project');
   }
   assert.ok(!/ChatGPT hit a snag|Something went wrong\. Try again|Update ChatGPT/.test(homeText), 'home rendered without an application error boundary');
-  assert.ok(/Full access|完整访问|完全访问/.test(homeText), 'new chat uses full access by default');
+  const legacyPermissionProbe = process.env.CODEX_TEST_PET_INPUT === '1' && result.version.endsWith('-b5');
+  if (!legacyPermissionProbe) assert.ok(/Ask for approval|请求批准/.test(homeText), 'fresh chat asks for approval by default');
   assert.ok(!/^Scheduled$/m.test(homeText), 'scheduled navigation removed');
-  assert.ok(!homeText.includes('Finish Windows setup'), 'full-access chat does not require environment setup');
   assert.ok(!homeText.includes('Introducing GPT-'), 'model promotion removed');
-  result.checks.push('employee home without scheduled navigation, environment setup or model promotion');
+  result.checks.push('employee home without scheduled navigation or model promotion');
+  if (!legacyPermissionProbe) {
+    const openPermissions = () => evaluate(() => document.querySelector('[data-composer-navigation-target="permissions"]').click());
+    await openPermissions();
+    await waitFor(() => [...document.querySelectorAll('[role="menuitem"],button')].some(e => /^(Full access|完全访问|完整访问)/.test(e.textContent.trim()) && !e.hasAttribute('data-composer-navigation-target')));
+    await evaluate(() => [...document.querySelectorAll('[role="menuitem"],button')].find(e => /^(Full access|完全访问|完整访问)/.test(e.textContent.trim()) && !e.hasAttribute('data-composer-navigation-target')).click());
+    await waitFor(() => [...document.querySelectorAll('[role="dialog"] button,[role="alertdialog"] button')].some(e => /^(Confirm|确认)$/.test(e.textContent.trim())));
+    await evaluate(() => [...document.querySelectorAll('[role="dialog"] button,[role="alertdialog"] button')].find(e => /^(Confirm|确认)$/.test(e.textContent.trim())).click());
+    await waitFor(() => /Full access|完全访问|完整访问/.test(document.querySelector('[data-composer-navigation-target="permissions"]')?.textContent || ''));
+    await openPermissions();
+    await waitFor(() => [...document.querySelectorAll('[role="menuitem"],button')].some(e => /^(Ask for approval|请求批准)/.test(e.textContent.trim()) && !e.hasAttribute('data-composer-navigation-target')));
+    await evaluate(() => [...document.querySelectorAll('[role="menuitem"],button')].find(e => /^(Ask for approval|请求批准)/.test(e.textContent.trim()) && !e.hasAttribute('data-composer-navigation-target')).click());
+    await delay(2000);
+    assert.match(await evaluate(() => document.querySelector('[data-composer-navigation-target="permissions"]')?.textContent || ''), /Ask for approval|请求批准/, 'switching back to approval does not bounce to full access');
+    await capture('01-approval-restored.png');
+    result.checks.push('fresh default asks for approval; explicit full access and return to approval both work');
+    await evaluate(() => document.querySelector('[data-composer-navigation-target="workspace-project"]').click());
+    await waitFor(() => [...document.querySelectorAll('[role="menuitem"],button')].some(e => /^(New project|新建项目|创建项目)$/.test(e.textContent.trim())));
+    await evaluate(() => [...document.querySelectorAll('[role="menuitem"],button')].find(e => /^(New project|新建项目|创建项目)$/.test(e.textContent.trim())).click());
+    await waitFor(() => [...document.querySelectorAll('[role="dialog"]')].some(e => /Local|本地/.test(e.textContent)));
+    const projectDialog = await evaluate(() => document.querySelector('[role="dialog"]')?.innerText || '');
+    assert.ok(!/Remote|远程|Cloud|云端/.test(projectDialog), 'project creation only offers local execution');
+    await capture('01-local-project.png');
+    await send('Input.dispatchKeyEvent', { type: 'keyDown', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
+    await send('Input.dispatchKeyEvent', { type: 'keyUp', key: 'Escape', code: 'Escape', windowsVirtualKeyCode: 27 });
+    result.checks.push('project creation shows Local without Remote or Cloud');
+  }
   if (current) {
     await evaluate(() => {
       const editor = document.querySelector('[contenteditable="true"][role="textbox"], .ProseMirror[contenteditable="true"]');
@@ -458,6 +489,18 @@ try {
   if (process.env.CODEX_TEST_PET_INPUT === '1') {
     const { probePetInput } = await import('./test/pet-input-smoke.mjs');
     result.petInput = await probePetInput(petTarget, child.pid, output);
+    if (!legacyPermissionProbe || process.env.CODEX_TEST_PET_FIX === '1') {
+      const probe = result.petInput;
+      assert.equal(probe.error, undefined, 'pet input probe completed');
+      assert.deepEqual(probe.errors, [], 'pet renderer has no exceptions');
+      assert.ok(probe.afterClick.events.some(e => e.type === 'pointerdown'), 'native click reaches pet');
+      const before = probe.afterClick.regions.find(r => r.name === 'mascot').rect;
+      const after = probe.afterDrag.regions.find(r => r.name === 'mascot').rect;
+      const distance = Math.hypot(after.x + probe.drag.after.Left - before.x - probe.drag.before.Left, after.y + probe.drag.after.Top - before.y - probe.drag.before.Top);
+      assert.ok(distance > 30, 'native dragging moves the pet on screen: ' + distance);
+      assert.equal(probe.background.backgroundClicks, 1, 'transparent pet region does not block the desktop button');
+      result.checks.push('native pet clicks, drag movement and desktop click-through passed');
+    }
   }
   await evaluate(() => [...document.querySelectorAll('button')].find(button => /^(Tuck Away Pet|Hide Mini|收起宠物|隐藏宠物|隐藏 Mini)$/.test(button.textContent.trim())).click());
   await waitFor(() => [...document.querySelectorAll('button')].some(button => /^(Wake Pet|Show Mini|唤醒(?:虚拟)?宠物|显示宠物|显示 Mini)$/.test(button.textContent.trim())));

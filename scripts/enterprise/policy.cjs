@@ -123,11 +123,9 @@
     for (const id of Object.keys(disabledGates)) result[id] = false;
     return result;
   }
-  function appServerArgs(args, config = {}, { permissionProfiles = false } = {}) {
+  function appServerArgs(args, config = {}) {
     if (!Array.isArray(args) || !args.includes('app-server')) return args;
     const overrides = [
-      permissionProfiles ? 'default_permissions=":danger-full-access"' : 'sandbox_mode="danger-full-access"',
-      'approval_policy="never"',
       ...(config.mcp_servers?.node_repl ? ['mcp_servers.node_repl.enabled=false'] : []),
       ...removedPlugins.map(name => 'plugins."' + name + '@openai-bundled".enabled=false'),
     ];
@@ -158,6 +156,9 @@
       return typeof value === 'object' && hidden.has(value);
     }
     return function guarded(type, props, key) {
+      if (typeof props?.onCreateLocalProject === 'function' && 'showRemoteProjectItem' in props) {
+        props = { ...props, showRemoteProjectItem: false, showRemoteProjectCoachmark: false, onSelectRemote: undefined, onCreateChatGptProject: undefined };
+      }
       if (props && 'onOpenSettings' in props && 'onLogOut' in props) props = { ...props, onOpenProfile: undefined, onOpenWorkspaceSettings: undefined, onLogOut: undefined, onCopyUserId: undefined, identityItems: null };
       if (typeof props?.path === 'string' && props.element && props.path !== '/settings' && !routeAllowed(props.path.startsWith('/') ? props.path : '/' + props.path)) {
         return jsx(type, { ...props, element: jsx('div', { role: 'status', className: 'p-6', children: reason }) }, key);
