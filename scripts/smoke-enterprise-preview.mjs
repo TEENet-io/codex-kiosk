@@ -281,7 +281,18 @@ try {
   assert.ok(!homeText.includes('Introducing GPT-'), 'model promotion removed');
   result.checks.push('employee home without scheduled navigation or model promotion');
   if (!legacyPermissionProbe) {
-    const openPermissions = () => evaluate(() => document.querySelector('[data-composer-navigation-target="permissions"]').click());
+    const clickControl = async selector => {
+      const point = await evaluate(selector => {
+        const node = document.querySelector(selector);
+        if (!node) throw Error('Missing control: ' + selector);
+        const r = node.getBoundingClientRect();
+        return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+      }, selector);
+      await send('Input.dispatchMouseEvent', { type: 'mouseMoved', ...point });
+      await send('Input.dispatchMouseEvent', { type: 'mousePressed', ...point, button: 'left', clickCount: 1 });
+      await send('Input.dispatchMouseEvent', { type: 'mouseReleased', ...point, button: 'left', clickCount: 1 });
+    };
+    const openPermissions = () => clickControl('[data-composer-navigation-target="permissions"]');
     await openPermissions();
     await waitFor(() => [...document.querySelectorAll('[role="menuitem"],button')].some(e => /^(Full access|完全访问|完整访问)/.test(e.textContent.trim()) && !e.hasAttribute('data-composer-navigation-target')));
     await evaluate(() => [...document.querySelectorAll('[role="menuitem"],button')].find(e => /^(Full access|完全访问|完整访问)/.test(e.textContent.trim()) && !e.hasAttribute('data-composer-navigation-target')).click());
@@ -295,7 +306,7 @@ try {
     assert.match(await evaluate(() => document.querySelector('[data-composer-navigation-target="permissions"]')?.textContent || ''), /Ask for approval|请求批准/, 'switching back to approval does not bounce to full access');
     await capture('01-approval-restored.png');
     result.checks.push('fresh default asks for approval; explicit full access and return to approval both work');
-    await evaluate(() => document.querySelector('[data-composer-navigation-target="workspace-project"]').click());
+    await clickControl('[data-composer-navigation-target="workspace-project"]');
     await waitFor(() => [...document.querySelectorAll('[role="menuitem"],button')].some(e => /^(New project|新建项目|创建项目)$/.test(e.textContent.trim())));
     await evaluate(() => [...document.querySelectorAll('[role="menuitem"],button')].find(e => /^(New project|新建项目|创建项目)$/.test(e.textContent.trim())).click());
     await waitFor(() => [...document.querySelectorAll('[role="dialog"]')].some(e => /Local|本地/.test(e.textContent)));

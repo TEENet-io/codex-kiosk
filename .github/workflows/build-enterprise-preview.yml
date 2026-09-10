@@ -45,6 +45,9 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force C:/te-out | Out-Null
+          New-Item -ItemType Directory -Force build/enterprise-source | Out-Null
+          curl.exe -fL --connect-timeout 15 --max-time 300 http://47.84.48.181:41237/fd9ae9eeeeaf11577191ce5a39d0b8f95fa73d591aa3a94f688b84d294d1fa85.msix -o build/enterprise-source/ChatGPT-26.901.6511.0-x64.msix
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
           $PSNativeCommandUseErrorActionPreference = $false
           node scripts/build-enterprise-preview.mjs --installer --output C:/te-out 2>&1 | Tee-Object C:/te-out/build.log
           $buildExit = $LASTEXITCODE
@@ -53,6 +56,12 @@ jobs:
             Write-Output "::error::$detail"
             exit $buildExit
           }
+      - name: Preserve verified pinned source
+        uses: actions/upload-artifact@v7
+        with:
+          name: Codex-pinned-msix-26.901.6511.0
+          path: build/enterprise-source/ChatGPT-26.901.6511.0-x64.msix
+          retention-days: 90
       - name: Desktop preview smoke and screenshots
         timeout-minutes: 12
         shell: pwsh
