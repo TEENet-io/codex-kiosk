@@ -508,6 +508,7 @@ try {
       assert.equal(probe.error, undefined, 'pet input probe completed');
       assert.deepEqual(probe.errors, [], 'pet renderer has no exceptions');
       assert.ok(probe.afterClick.events.some(e => e.type === 'pointerdown'), 'native click reaches pet');
+      assert.equal(probe.backgroundBottom.backgroundClicks, 1, 'bottom-right transparent region passes native clicks');
       const before = probe.afterClick.regions.find(r => r.name === 'mascot').rect;
       const after = probe.afterDrag.regions.find(r => r.name === 'mascot').rect;
       const distance = Math.hypot(after.x + probe.drag.after.Left - before.x - probe.drag.before.Left, after.y + probe.drag.after.Top - before.y - probe.drag.before.Top);

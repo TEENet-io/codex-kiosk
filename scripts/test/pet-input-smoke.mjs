@@ -66,6 +66,7 @@ export async function probePetInput(target, pid, output) {
       report.afterFocusableDrag = await snapshot();
     }
     report.background = native(10, 10, ['-ProbeBackground']);
+    report.backgroundBottom = native(viewport.width - 5, viewport.height - 5, ['-ProbeBackground']);
     const screenshot = await send('Page.captureScreenshot');
     fs.writeFileSync(path.join(output, '08-pet-input.png'), Buffer.from(screenshot.data, 'base64'));
   } catch (e) { report.error = String(e.stack || e); }

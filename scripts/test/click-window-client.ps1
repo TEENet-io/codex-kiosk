@@ -80,6 +80,7 @@ if ($ProbeBackground) {
     $form.Top = $before.Top
     $form.Width = $ClientWidth
     $form.Height = $ClientHeight
+    $form.TopMost = $true
     $button = New-Object System.Windows.Forms.Button
     $button.Dock = 'Fill'
     $button.Text = 'Desktop click-through probe'
@@ -88,6 +89,8 @@ if ($ProbeBackground) {
     $form.Controls.Add($button)
     $form.Show()
     [System.Windows.Forms.Application]::DoEvents()
+    # Put the probe immediately behind the pet, including over the taskbar.
+    [CodexNativeClick]::SetWindowPos($form.Handle, $handle, 0, 0, 0, 0, 0x13) | Out-Null
 }
 if (-not [CodexNativeClick]::SetCursorPos($point.X, $point.Y)) { throw 'SetCursorPos failed.' }
 Start-Sleep -Milliseconds 700

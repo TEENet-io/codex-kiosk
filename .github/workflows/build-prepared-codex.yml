@@ -1,0 +1,91 @@
+name: build-prepared-codex
+on:
+  push:
+    branches: ['build/prepared-codex']
+  workflow_dispatch:
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: prepared-codex-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 35
+    env:
+      CODEX_TEST_PET_INPUT: '1'
+      CODEX_TEST_NATIVE_GPU: '1'
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          cache: npm
+      - run: npm ci
+      - run: npm test
+      - name: Gateway checks
+        shell: pwsh
+        run: |
+          npm --prefix web-gateway ci
+          npm --prefix web-gateway run build:gateway
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node --test './web-gateway/gateway/test/*.test.cjs'
+      - uses: actions/download-artifact@v8
+        with:
+          github-token: ${{ github.token }}
+          run-id: 34370298624
+          name: Codex-package
+          path: C:/codex-cache
+      - name: Materialize exact source-built stage
+        shell: pwsh
+        run: |
+          $base = 'C:/codex-cache/codex-only-local-26.901.51231-b5-portable.zip'
+          if ((Get-FileHash $base).Hash.ToLowerInvariant() -ne 'f7256f3e3589097e3eedd9b7fd5bd964b60e1fb111de01930d78db33a90425d7') { throw 'Cached package digest mismatch' }
+          New-Item -ItemType Directory -Force C:/codex-base,C:/codex-overlay,C:/te-out | Out-Null
+          tar.exe -xf $base -C C:/codex-base
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          $transfer = Get-Content config/prepared-stage.json -Raw | ConvertFrom-Json
+          curl.exe -fsSL --retry 2 --max-time 600 $transfer.url -o C:/codex-stage.zip
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          if ((Get-FileHash C:/codex-stage.zip).Hash.ToLowerInvariant() -ne $transfer.sha256) { throw 'Stage transfer digest mismatch' }
+          tar.exe -xf C:/codex-stage.zip -C C:/codex-overlay
+          node scripts/enterprise/stage-transfer.mjs materialize C:/codex-base/codex-only-local-26.901.51231-b5 C:/codex-overlay C:/codex-verified
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - uses: actions/upload-artifact@v7
+        with:
+          name: Codex-verified-stage-input
+          path: C:/codex-stage.zip
+          retention-days: 90
+      - name: Build Windows installer
+        shell: pwsh
+        run: |
+          if (-not (Test-Path "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe")) { choco install innosetup --no-progress -y }
+          node scripts/enterprise/package-stage.mjs C:/codex-verified C:/te-out
+      - name: Native desktop interactions
+        shell: pwsh
+        run: |
+          node scripts/smoke-enterprise-preview.mjs C:/te-out/codex-only-local-26.901.51231-b6 C:/te-out/smoke
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          node scripts/smoke-enterprise-preview.mjs C:/te-out/codex-only-local-26.901.51231-b6 C:/te-out/smoke-gateway bearer-only pet-zh
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: Codex-validation
+          path: |
+            C:/te-out/smoke/
+            C:/te-out/smoke-gateway/
+            C:/te-out/SHA256SUMS.txt
+            C:/te-out/enterprise-build.json
+          retention-days: 14
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: Codex-package
+          path: |
+            C:/te-out/*-setup.exe
+            C:/te-out/*-portable.zip
+            C:/te-out/SHA256SUMS.txt
+            C:/te-out/enterprise-build.json
+          retention-days: 14
